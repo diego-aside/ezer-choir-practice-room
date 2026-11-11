@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ede7dc"><title>Ezer choir practice room</title>
+<link rel="stylesheet" href="style.css">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head>
+<body data-device="desktop">
+<div id="scene" aria-label="3D 찬양반 연습실"></div>
+<header><a class="brand" href="./"><span class="brand-icon">✝</span><span>찬양의 방<small>여의도순복음교회 중등2부 에셀찬양대</small></span></a><div class="room-info"><span class="live-dot"></span> 연습실 01 <span class="divider">|</span> 나만의 연습 시간</div><button id="treasure-pill" class="pill" aria-label="보물찾기">🎵 <span class="pill-label">보물찾기</span> <b id="treasure-count">0</b>/5</button><button id="help" class="icon-button" aria-label="사용 안내">?</button></header>
+<aside class="intro"><span class="eyebrow">PRAISE ROOM / 01</span><h1>함께 부르는 마음,<br>찬양이 머무는 곳.</h1><p>잠시 마음을 고르고, 오늘의 찬양을 준비해요.</p><span class="local-badge">로컬 연습 · 1인 공간</span></aside>
+
+<!-- TV 리모컨: 데스크톱은 오른쪽, 휴대폰은 상단 -->
+<aside id="remote" aria-label="TV 리모컨">
+  <button id="remote-toggle" class="remote-head" aria-expanded="true"><span>📺 TV 리모컨</span><span class="chev">▾</span></button>
+  <div class="remote-body">
+    <div class="remote-modes" role="tablist" aria-label="TV 모드">
+      <button role="tab" data-mode="past">① 지난 찬양 영상</button>
+      <button role="tab" data-mode="weekly">② 이번 주 찬양 연습하기</button>
+      <button role="tab" data-mode="playlist">③ 찬양 플레이리스트</button>
+    </div>
+    <p id="mode-info" class="muted"></p>
+    <div class="list-title">연습곡 목록</div>
+    <div id="tv-list"></div>
+    <div class="remote-now"><strong id="tv-title">재생 대기 중</strong><small id="tv-status" role="status"></small></div>
+    <div class="remote-controls">
+      <button id="tv-prev" aria-label="이전">⏮</button><button id="tv-play" aria-label="재생">▶ 재생</button><button id="tv-pause" aria-label="일시정지">Ⅱ</button><button id="tv-next" aria-label="다음">⏭</button>
+      <label class="vol">🔊<input type="range" id="tv-volume" min="0" max="100" value="40" aria-label="음량"></label>
+    </div>
+    <a id="tv-open" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">YouTube에서 열기 ↗</a>
+  </div>
+</aside>
+
+<div class="room-tag">♪ &nbsp; 따뜻한 빛 아래, 우리의 연습실</div>
+<div id="avatar-label" hidden></div><div id="emote-bubble" hidden></div><div id="verse-bubble" hidden></div><div id="stuck-bubble" hidden>언제 연습하지?</div>
+<div id="npc-label" hidden>교사 선생님</div><div id="npc-bubble" hidden></div>
+<div id="hud-status"><span id="chip-pray" class="chip" hidden></span><span id="chip-coffee" class="chip" hidden>☕ 커피 권한 있음</span><span id="chip-mask" class="chip" hidden>🎭 교사로 위장 중</span></div>
+<div id="context">
+  <button id="sit" hidden>의자에 앉기 <kbd>E</kbd></button>
+  <button id="tv-focus" hidden>📺 TV 크게 보기</button>
+  <button id="perform" hidden>🎻 연주하기</button>
+  <button id="conduct" hidden>🎼 지휘하기</button>
+  <button id="mask" hidden>🎭 교사로 위장하기</button>
+  <button id="brew" hidden>☕ 커피 내리기</button>
+  <button id="take" hidden>☕ 커피 가져가기</button>
+  <button id="drink" hidden>☕ 마시기</button>
+  <button id="trash" hidden>🗑 빈 컵 버리기</button>
+</div>
+<footer id="toolbar">
+  <button class="identity" id="identity" aria-label="이름·파트 바꾸기"><span id="part-dot"></span><div><strong id="nickname-display">방문자</strong><small id="part-display">입장 준비 중</small></div><span class="edit-mark">✎</span></button>
+  <div class="emotes" aria-label="이모트"><button data-emote="amen"><span>🙏</span>아멘</button><button data-emote="clap"><span>👏</span>박수</button><button data-emote="raise"><span>✋</span>손들기</button><button id="pray-toggle"><span>🙇</span><b id="pray-label">기도하기</b></button></div>
+  <div class="actions"><button id="songs-open" class="songs-button">♫ <span>오늘의 찬양</span></button><button id="verse-open" class="songs-button">📜 <span>말씀</span></button><button id="lesson-open" class="songs-button">📖 <span>공과</span></button></div>
+</footer>
+<div class="movement-hint"><span class="only-desktop">바닥 클릭으로 이동 <i>·</i> 드래그로 둘러보기 <i>·</i> 휠로 확대 / 축소</span><span class="only-mobile">조이스틱으로 이동 <i>·</i> 화면을 밀어 둘러보기 <i>·</i> 터치로 선택</span></div>
+<div id="joystick" aria-label="이동 조이스틱"><div id="stick"></div></div>
+<div id="toast" role="status" hidden></div>
+
+<dialog id="entry"><form id="entry-form"><span class="eyebrow">WELCOME TO PRAISE ROOM</span><h2>오늘도, 찬양으로 만나요.</h2><p>입장하면 성경 속 이름과 성가대 파트가 무작위로 정해져요.<br>들어간 뒤 아래 이름표를 눌러 언제든 바꿀 수 있어요.</p>
+  <div class="draw-card"><span id="draw-icon">🎼</span><div><strong id="draw-name">—</strong><small id="draw-part">—</small></div></div>
+  <button class="primary" id="enter-button" disabled>연습실을 준비하고 있어요…</button>
+  <button type="button" class="ghost" id="enter-saved" hidden>지난번 프로필로 입장</button>
+  <small class="privacy">로그인 없이 편하게 · 이름과 파트만 이 기기에 저장해요</small></form></dialog>
+
+<dialog id="profile"><form id="profile-form"><div class="dialog-heading"><div><span class="eyebrow">MY NAME TAG</span><h2>이름 · 파트 바꾸기</h2></div><button type="button" class="close" aria-label="닫기">×</button></div>
+  <label for="profile-name" class="field-label">이름 <span>비우면 그대로</span></label><input id="profile-name" maxlength="16" autocomplete="off">
+  <fieldset><legend>나의 파트</legend><div class="part-options" id="profile-parts"></div></fieldset>
+  <fieldset id="instrument-field" hidden><legend>오케스트라 악기 <span class="hint">올해는 3가지예요</span></legend><div class="instrument-options" id="profile-instruments"></div></fieldset>
+  <label class="check"><input type="checkbox" id="profile-teacher"> 교사 선생님이에요 <small>(교사 파트 · 교사실에 들어갈 수 있어요)</small></label>
+  <div class="row-buttons"><button type="button" id="profile-random">🎲 랜덤으로</button><button class="primary" id="profile-save">저장</button></div></form></dialog>
+
+<dialog id="songs"><div class="dialog-heading"><div><span class="eyebrow">TODAY'S PRAISE · 랜덤 찬송가</span><h2>오늘의 찬양</h2></div><button class="close" aria-label="닫기">×</button></div><p class="muted">음원을 듣고 악보를 보며 연습해요.</p><div id="random-hymn"><div class="song-row"><span class="song-number" id="hymn-number"></span><div class="song-detail"><strong id="hymn-title"></strong><small>찬송가 · yeram.org</small></div></div><audio id="hymn-audio" controls preload="none"></audio></div><div class="row-buttons"><button id="hymn-again">🎲 다른 찬양</button><button id="hymn-sheet" class="primary">악보 보기 ↗</button></div><p class="fine">찬송가 음원·악보는 yeram.org에서 가져왔어요.</p></dialog>
+<dialog id="sheet"><div class="dialog-heading"><h2 id="sheet-title">악보</h2><button class="close" aria-label="닫기">×</button></div><div id="sheet-content"></div></dialog>
+
+<dialog id="verse"><div class="dialog-heading"><div><span class="eyebrow">WORD · 성경 구절로 말해요</span><h2>말씀 채팅</h2></div><button class="close" aria-label="닫기">×</button></div><p class="muted">대화는 성경 구절 1절 단위로 이어져요. 구절을 고르면 머리 위에 말풍선이 떠요. (긴 구절은 ...으로 끊겨요)</p><div id="verse-list"></div><div class="list-title">내가 한 말씀</div><ol id="verse-log"><li class="muted">아직 없어요.</li></ol></dialog>
+
+<dialog id="lesson"><div class="dialog-heading"><div><span class="eyebrow" id="lesson-eyebrow">공과 1 / 5</span><h2 id="lesson-title">공과</h2></div><button class="close" aria-label="닫기">×</button></div><div class="steps" id="lesson-dots"></div><div id="lesson-body" class="lesson-body"></div><div class="row-buttons"><button id="lesson-prev">← 이전</button><button id="lesson-next" class="primary">다음 →</button></div></dialog>
+
+<dialog id="treasure"><div class="dialog-heading"><div><span class="eyebrow">TREASURE HUNT</span><h2 id="treasure-title">보물찾기</h2></div><button class="close" aria-label="닫기">×</button></div><p id="treasure-msg"></p><div id="treasure-slots" class="steps"></div><p class="fine">연습실 어딘가에 숨은 황금 음표 5개를 찾아 가까이 다가가 눌러 보세요. 벽가·식물 뒤·높은 자리도 살펴보세요.</p></dialog>
+
+<dialog id="coffee"><div class="dialog-heading"><div><span class="eyebrow">CAPSULE COFFEE</span><h2>커피를 내릴게요</h2></div><button class="close" aria-label="닫기">×</button></div><p>기도로 얻은 커피예요. 누구를 위한 커피인가요?</p><div class="choice"><button id="coffee-drink" class="primary">☕ 내가 마실게요<small>컵을 들고 다니며 5모금까지 마실 수 있어요</small></button><button id="coffee-donate">🎁 기부할게요<small>친구·선생님을 위해 책상에 올려 둬요. 누구나 가져가 마실 수 있어요</small></button></div></dialog>
+
+<dialog id="guide"><div class="dialog-heading"><h2>편안하게 둘러보세요</h2><button class="close" aria-label="닫기">×</button></div>
+  <div class="guide-desktop"><span class="eyebrow">컴퓨터 버전</span><p>바닥을 클릭하면 그곳으로 걸어갑니다. 화면을 드래그해 둘러보고, 휠로 거리를 조절하세요. 키보드 W A S D와 방향키로도 움직일 수 있어요.</p></div>
+  <div class="guide-mobile"><span class="eyebrow">휴대폰 버전</span><p>왼쪽 아래 조이스틱으로 움직여요. 화면을 손가락으로 밀면 시점이 돌아가고, 바닥을 톡 누르면 그곳으로 걸어가요. 위쪽 'TV 리모컨'은 눌러서 펼치고 접을 수 있어요.</p></div>
+  <p>찬양대석 근처에서 E(또는 앉기 버튼)로 앉아요. 오른쪽(휴대폰은 위쪽) 'TV 리모컨'에서 모드를 고르면 정해진 찬양이 방 안 TV에서 자동으로 재생돼요.</p>
+  <p>교사실은 교사 선생님이나 '교사로 위장하기'를 누른 사람만 들어갈 수 있어요. 선생님께 들키면 바로 쫓겨나요! 커피는 3분 이상 기도해야 내릴 수 있어요.</p>
+  <p>연습실 곳곳에 숨은 황금 음표 5개를 찾아 보세요.</p></dialog>
+<script>document.addEventListener('error',function(e){if(e.target.tagName==='SCRIPT'){var t=document.getElementById('toast');t.hidden=false;t.textContent='필요한 스크립트를 불러오지 못했어요. 인터넷 연결과 CDN 접근을 확인해 주세요.';var b=document.getElementById('enter-button');if(b.disabled)b.textContent='연결을 확인하고 새로고침해 주세요.';}},true);</script>
+<script type="module" src="main.js"></script>
+</body></html>

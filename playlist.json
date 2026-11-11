@@ -1,0 +1,41 @@
+{
+  "note": "TV 영상 목록 — 이 파일만 고치면 됩니다. 여의도순복음교회 중등2부 에셀찬양대 공식 채널 Ezer Choir (@ezerchoir9064). 영상 파일은 저장하지 않고 유튜브 임베드만 씁니다. id는 11자리 영상 ID, start/end(초)는 선택입니다.",
+  "modes": {
+    "past": {
+      "label": "지난 찬양 영상",
+      "description": "Ezer Choir 채널의 가장 최신 영상 10개 중에서 골라 봐요.",
+      "videos": [
+        { "id": "hmRFM5_RfTk", "title": "[26/08/23] 내 맘에 한 노래 있어 (이성욱)" },
+        { "id": "sX_w3PRFqsg", "title": "[26/08/16] 선한 목자 되신 우리 주 (김기영)" },
+        { "id": "4jg8WvbA7GE", "title": "[26/08/02] 일어나라 주의 백성 (피아워십)" },
+        { "id": "CO7Evsle6Vk", "title": "[26/07/26] 이 시간 너의 맘속에 (소우주)" },
+        { "id": "jehhw41Lk90", "title": "[26/07/19] 목자의 노래 (Douglas Nolan)" },
+        { "id": "Jsbjyfa2830", "title": "[26/07/12] 그의 빛 안에 살면 (Don Besig)" },
+        { "id": "Xa0oLBf_y78", "title": "[26/07/05] 너 예수께 조용히 나가 (황주연)" },
+        { "id": "yximsMR5T5E", "title": "[26/06/21] 거룩하신 하나님 (Vicki Tucker Courtney)" },
+        { "id": "bcvQS-Dy78U", "title": "[26/06/28] 주님과 같이 (James Koerts)" },
+        { "id": "pZKhkUY1vvA", "title": "[26/06/14] 더 원합니다 (황광선)" }
+      ]
+    },
+    "weekly": {
+      "label": "이번 주 찬양 연습하기",
+      "description": "이번 주에 연습할 찬양 영상이에요.",
+      "_comment": "TODO: 이번 주 연습 영상이 정해지면 아래 videos 배열에 { \"id\": \"유튜브11자리ID\", \"title\": \"곡명\" } 형태로 채워 주세요. 비어 있으면 TV에 '아직 지정되지 않았어요' 안내가 뜹니다.",
+      "videos": []
+    },
+    "playlist": {
+      "label": "찬양 플레이리스트",
+      "description": "가장 최근 재생목록이 이어서 재생돼요.",
+      "_comment": "새 재생목록이 나오면 title·url·videos(곡 순서대로)를 통째로 교체하세요. 재생은 videos의 id를 순서대로 이어 붙이는 방식이라 재생목록 ID(list=)가 틀려도 동작합니다.",
+      "title": "11/15 추수감사주일 예배찬양",
+      "url": "https://www.youtube.com/playlist?list=PLb_v15oZY5w4",
+      "videos": [
+        { "id": "j4ncLJvosn8", "title": "내 주를 가까이" },
+        { "id": "UKweM9-ytIE", "title": "주 이름 찬양" },
+        { "id": "pI0W1trCI98", "title": "감사와 찬양드리며" },
+        { "id": "-558u13QeN8", "title": "Thank You Lord" },
+        { "id": "T8NspjZNctA", "title": "주의 사랑을 주의 선하심을" }
+      ]
+    }
+  }
+}
