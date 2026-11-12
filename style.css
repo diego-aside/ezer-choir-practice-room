@@ -51,3 +51,8 @@ body[data-device=mobile] #remote{top:68px;left:10px;right:10px;width:auto;max-he
 @media(max-width:900px){.intro{display:none}.pill .pill-label{display:none}}
 @media(max-width:700px){#remote{top:66px;left:10px;right:10px;width:auto;max-height:46dvh}.actions{gap:3px}.songs-button{padding:11px 9px}.identity .edit-mark{display:none}.identity small{display:none}#toolbar{gap:4px;padding:8px}.emotes button{font-size:0}#pray-label{display:none}.draw-card{flex-wrap:wrap}header{padding-right:12px}.room-info{display:none}.pill{margin-left:auto;padding:8px 11px}#hud-status{top:auto;bottom:178px}}
 @media(max-height:520px){#remote{max-height:calc(100dvh - 150px)}}
+#prayer-card{position:absolute;top:122px;left:50%;transform:translateX(-50%);width:min(420px,88vw);background:#fffffff2;border-radius:16px;padding:12px 18px;text-align:center;box-shadow:0 6px 24px #0003;pointer-events:none;z-index:4;color:#3c4a38}#prayer-card[hidden]{display:none}
+#prayer-card small{display:block;font-size:11px;font-weight:700;color:#7f8c74;letter-spacing:.03em}#prayer-card p{margin:6px 0 4px;font-size:16px;font-weight:600;line-height:1.5;word-break:keep-all}#prayer-card em{font-size:10.5px;color:#8a9580;font-style:normal}
+body[data-device=mobile] #prayer-card{top:auto;bottom:232px}@media(max-width:700px){#prayer-card{top:auto;bottom:232px}}
+#verse-sheet{margin-top:12px}#verse-sheet[hidden]{display:none}#verse-sheet-list{display:flex;flex-direction:column;gap:6px;max-height:42dvh;overflow:auto;margin-top:6px}
+.verse-row.sheet{flex-direction:column;gap:3px}.verse-row.sheet b{flex:none;font-size:12px}.verse-row.sheet small{color:#8a9580;font-size:10.5px}

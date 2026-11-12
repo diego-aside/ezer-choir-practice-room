@@ -35,6 +35,7 @@
 <div class="room-tag">♪ &nbsp; 따뜻한 빛 아래, 우리의 연습실</div>
 <div id="avatar-label" hidden></div><div id="emote-bubble" hidden></div><div id="verse-bubble" hidden></div><div id="stuck-bubble" hidden>언제 연습하지?</div>
 <div id="npc-label" hidden>교사 선생님</div><div id="npc-bubble" hidden></div>
+<div id="prayer-card" hidden><small>🙏 친구의 기도제목</small><p id="prayer-text"></p><em>이 친구를 위해 함께 기도해요</em></div>
 <div id="hud-status"><span id="chip-pray" class="chip" hidden></span><span id="chip-coffee" class="chip" hidden>☕ 커피 권한 있음</span><span id="chip-mask" class="chip" hidden>🎭 교사로 위장 중</span></div>
 <div id="context">
   <button id="sit" hidden>의자에 앉기 <kbd>E</kbd></button>
@@ -72,7 +73,7 @@
 <dialog id="songs"><div class="dialog-heading"><div><span class="eyebrow">TODAY'S PRAISE · 랜덤 찬송가</span><h2>오늘의 찬양</h2></div><button class="close" aria-label="닫기">×</button></div><p class="muted">음원을 듣고 악보를 보며 연습해요.</p><div id="random-hymn"><div class="song-row"><span class="song-number" id="hymn-number"></span><div class="song-detail"><strong id="hymn-title"></strong><small>찬송가 · yeram.org</small></div></div><audio id="hymn-audio" controls preload="none"></audio></div><div class="row-buttons"><button id="hymn-again">🎲 다른 찬양</button><button id="hymn-sheet" class="primary">악보 보기 ↗</button></div><p class="fine">찬송가 음원·악보는 yeram.org에서 가져왔어요.</p></dialog>
 <dialog id="sheet"><div class="dialog-heading"><h2 id="sheet-title">악보</h2><button class="close" aria-label="닫기">×</button></div><div id="sheet-content"></div></dialog>
 
-<dialog id="verse"><div class="dialog-heading"><div><span class="eyebrow">WORD · 성경 구절로 말해요</span><h2>말씀 채팅</h2></div><button class="close" aria-label="닫기">×</button></div><p class="muted">대화는 성경 구절 1절 단위로 이어져요. 구절을 고르면 머리 위에 말풍선이 떠요. (긴 구절은 ...으로 끊겨요)</p><div id="verse-list"></div><div class="list-title">내가 한 말씀</div><ol id="verse-log"><li class="muted">아직 없어요.</li></ol></dialog>
+<dialog id="verse"><div class="dialog-heading"><div><span class="eyebrow">WORD · 성경 구절로 말해요</span><h2>말씀 채팅</h2></div><button class="close" aria-label="닫기">×</button></div><p class="muted">대화는 성경 구절 1절 단위로 이어져요. 구절을 고르면 머리 위에 말풍선이 떠요. (긴 구절은 ...으로 끊겨요)</p><div id="verse-list"></div><div id="verse-sheet" hidden><div class="list-title">찬양반 말씀 목록 <span id="verse-sheet-count"></span></div><div id="verse-sheet-list"></div></div><div class="list-title">내가 한 말씀</div><ol id="verse-log"><li class="muted">아직 없어요.</li></ol></dialog>
 
 <dialog id="lesson"><div class="dialog-heading"><div><span class="eyebrow" id="lesson-eyebrow">공과 1 / 5</span><h2 id="lesson-title">공과</h2></div><button class="close" aria-label="닫기">×</button></div><div class="steps" id="lesson-dots"></div><div id="lesson-body" class="lesson-body"></div><div class="row-buttons"><button id="lesson-prev">← 이전</button><button id="lesson-next" class="primary">다음 →</button></div></dialog>
 

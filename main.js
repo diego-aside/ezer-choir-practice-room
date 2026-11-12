@@ -136,6 +136,7 @@ const state = {
 };
 let renderer, cssRenderer, camera, scene, cssScene, avatar, torso, leftArm, rightArm, head, marker, screenObject, floor;
 let me, npc, doorPivot, machineLed, board, boardTex;
+let prayers = [], sheetVerses = [], prayerTimer, lastPrayer = -1;
 let toastTimer, verseTimer, npcTimer, activePointer = null, pointerStart = null, lastPointer = null;
 let instrumentObj = null, bowObj = null, heldCup = null, draw = null;
 const cameraWalls = [], cameraProbe = new THREE.Raycaster();
@@ -575,12 +576,26 @@ function emote(type) {
   stopPrayer(true); stopPlaying();
   state.emote = type; state.emoteEnd = performance.now() + 3000; $('#emote-bubble').textContent = { amen: '🙏', clap: '👏', raise: '✋' }[type]; $('#emote-bubble').hidden = false; MP.sendEmote(type);
 }
-function startPrayer() { if (!state.entered || modalOpen()) return; stopConducting(true); stopPlaying(); state.emoteEnd = 0; state.prayStart = performance.now(); $('#pray-label').textContent = '기도 마치기'; toast('🙏 기도를 시작해요. 3분 이상 기도하면 커피를 내릴 수 있어요.'); }
+function startPrayer() { if (!state.entered || modalOpen()) return; stopConducting(true); stopPlaying(); state.emoteEnd = 0; state.prayStart = performance.now(); $('#pray-label').textContent = '기도 마치기'; toast('🙏 기도를 시작해요. 3분 이상 기도하면 커피를 내릴 수 있어요.'); showPrayer(); }
 function stopPrayer(silent = false) {
   if (!state.prayStart) return;
-  const sec = (performance.now() - state.prayStart) / 1000; state.prayStart = 0; $('#pray-label').textContent = '기도하기';
+  hidePrayer(); const sec = (performance.now() - state.prayStart) / 1000; state.prayStart = 0; $('#pray-label').textContent = '기도하기';
   if (sec >= PRAY_COFFEE_SEC) { state.coffeeRight = true; if (!silent) toast(`🙏 ${fmtTime(sec)} 기도했어요. 교사실 커피머신에서 커피를 내릴 수 있어요 ☕`); else toast('기도를 마쳤어요. 커피 권한이 생겼어요 ☕'); }
   else if (!silent) toast(`기도를 마쳤어요 (${fmtTime(sec)}). 커피는 ${PRAY_COFFEE_SEC / 60}분 이상 기도해야 해요.`);
+}
+// 기도 중 친구 기도제목(prayers.json) — 내 화면에만 표시, 20초마다 교체. 로딩 실패 시 패널 없음.
+function nextPrayer() {
+  let i = Math.floor(Math.random() * prayers.length);
+  if (prayers.length > 1 && i === lastPrayer) i = (i + 1 + Math.floor(Math.random() * (prayers.length - 1))) % prayers.length;
+  lastPrayer = i; $('#prayer-text').textContent = prayers[i];
+}
+function showPrayer() {
+  clearInterval(prayerTimer); if (!prayers.length) return;
+  nextPrayer(); $('#prayer-card').hidden = false; prayerTimer = setInterval(nextPrayer, 20000);
+}
+function hidePrayer() { clearInterval(prayerTimer); $('#prayer-card').hidden = true; }
+async function loadPrayers() {
+  try { const r = await fetch('prayers.json'); const d = await r.json(); prayers = (d.prayers || []).filter((s) => typeof s === 'string' && s.trim()); } catch { prayers = []; }
 }
 function togglePrayer() { state.prayStart ? stopPrayer() : startPrayer(); }
 function attachInstrument(mode) { // carry: 왼손에 들고 다니기 / play: 연주 위치
@@ -616,6 +631,22 @@ function sayVerse(v) {
 }
 function renderVerses() {
   $('#verse-list').replaceChildren(...VERSES.map((v) => { const row = document.createElement('button'); row.className = 'verse-row'; const ref = document.createElement('b'); ref.textContent = v.ref; const text = document.createElement('span'); text.textContent = v.text; row.append(ref, text); row.onclick = () => { sayVerse(v); $('#verse').close(); }; return row; }));
+}
+
+function renderSheetVerses() {
+  if (!sheetVerses.length) return;
+  $('#verse-sheet-count').textContent = `(${sheetVerses.length})`;
+  $('#verse-sheet-list').replaceChildren(...sheetVerses.map((v) => {
+    const row = document.createElement('button'); row.className = 'verse-row sheet'; const ref = document.createElement('b'); ref.textContent = v.ref;
+    const text = document.createElement('span'); text.textContent = v.text; row.append(ref, text);
+    if (v.note) { const n = document.createElement('small'); n.textContent = v.note; row.append(n); }
+    row.onclick = () => { sayVerse({ ref: v.ref, text: v.text }); $('#verse').close(); }; return row;
+  }));
+  $('#verse-sheet').hidden = false;
+}
+async function loadVerseSheet() {
+  try { const r = await fetch('verses.json'); const d = await r.json(); sheetVerses = (d.verses || []).filter((v) => v && v.ref && v.text); } catch { sheetVerses = []; }
+  renderSheetVerses();
 }
 
 /* ---------- 교사실 · 위장 · 커피 ---------- */
@@ -944,7 +975,7 @@ function setupUI() {
   $('#treasure-pill').onclick = () => { renderTreasure(); openDialog('#treasure'); };
   $('#help').onclick = () => openDialog('#guide');
   document.addEventListener('visibilitychange', () => { keys.clear(); joystick.set(0, 0); });
-  renderVerses(); renderTreasure(); setupTv(); $('#entry').showModal();
+  renderVerses(); loadVerseSheet(); loadPrayers(); renderTreasure(); setupTv(); $('#entry').showModal();
   setInterval(() => { if (board) drawBoard(); }, 60000); // 일요일 12시 경과 시 자동 교체
 }
 function init() {
