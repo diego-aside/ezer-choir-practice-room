@@ -28,7 +28,7 @@ const instruments = {
 };
 const BIBLE_NAMES = ['다윗', '미리암', '요한', '에스더', '한나', '사무엘', '루디아', '모세', '룻', '바울', '디모데', '마리아', '베드로', '다니엘', '요셉', '사라', '드보라', '엘리야', '나오미', '브리스길라'];
 
-// 오늘의 찬양: 랜덤 찬송가 (yeram.org, 찬양대 헌금송 일정 기준 7곡).
+// 오늘의 찬양: 열 때마다 한 곡 뽑기 (yeram.org, 찬양대 헌금송 일정 기준 7곡).
 // audio는 yeram.org 상세 페이지의 첫 번째 음원(스테레오 44.1kHz), sheet는 악보 GIF(og:image).
 // sid는 재조회해도 같은 값으로 확인됨(2026-11-11).
 const HYMNS = [
@@ -51,9 +51,14 @@ function loadHymn(h) { // 오늘의 찬양 다이얼로그와 지휘 찬양이 �
   $('#hymn-number').textContent = `${h.number}장`;
   $('#hymn-title').textContent = h.title;
   const audio = $('#hymn-audio');
+  audio.referrerPolicy = 'no-referrer'; // yeram.org가 Vercel Referer 요청을 403으로 막는다(핫링크 차단)
   audio.src = h.audio + '#t=' + h.skip; // 앞부분 멘트(장·제목 안내) 건너뛰고 바로 찬송가부터
   audio.addEventListener('loadedmetadata', () => { if (audio.currentTime < h.skip) audio.currentTime = h.skip; }, { once: true });
   audio.load();
+}
+function initHymnAudio() {
+  const audio = $('#hymn-audio');
+  audio.addEventListener('error', () => { if (audio.getAttribute('src')) toast('음원을 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.'); });
 }
 function openHymnSheet() {
   if (!currentHymn) return;
@@ -330,7 +335,7 @@ function sitBench() {
   avatar.position.set(BENCH.x, BENCH.y, BENCH.z); avatar.rotation.y = BENCH.rotation; ensureAudio();
   toast(state.profile.part === 'accompanist' ? '🎹 피아노 앞에 앉았어요. 건반을 눌러 연주해 보세요.' : isMobile() ? '🎹 피아노 벤치에 앉았어요. 건반을 눌러 연주해 보세요.' : '🎹 피아노 벤치에 앉았어요. 건반을 눌러(또는 A W S E D F T G Y H U J K) 연주해 보세요.');
 }
-// 지휘 신호(MP onRemoteConduct): 'start'(타이머 재시작 + 자기 자리로 모이기) · 'stop' · 'hymn:번호'(헌금송 또는 찬양이 없는 주의 랜덤 찬송가 공유)
+// 지휘 신호(MP onRemoteConduct): 'start'(타이머 재시작 + 자기 자리로 모이기) · 'stop' · 'hymn:번호'(헌금송 또는 찬양이 없는 주의 뽑은 찬송가 공유)
 function conductSignal(id, kind) {
   kind = String(kind);
   if (kind.startsWith('hymn:')) { if (id !== 'me') playPraiseHymn(Number(kind.slice(5)), id); return; }
@@ -670,7 +675,7 @@ function offeringNumber() { // 이번 주 헌금송 문자열('310장 아 하나
   return n && HYMNS.some((x) => x.number === n) ? n : null;
 }
 let mainPraiseDone = false; // 본송→헌금송 전환 중복 방지
-function startPraise() { // 지휘 음악: 본송(weekly 첫 곡, TV) → 헌금송(찬송가 오디오) → 둘 다 없으면 랜덤 찬송가. 세트리스트는 쓰지 않는다.
+function startPraise() { // 지휘 음악: 본송(weekly 첫 곡, TV) → 헌금송(찬송가 오디오) → 둘 다 없으면 뽑은 찬송가. 세트리스트는 쓰지 않는다.
   mainPraiseDone = false;
   const main = modeVideos('weekly')[0];
   if (main) { state.praise = 'main'; setMode('weekly'); playIndex(0, true); toast(`🎵 본송: ${main.title.replace(/\s*\(.*\)$/, '')}`); return; }
@@ -770,15 +775,21 @@ function setInstrument(kind) {
 
 /* ---------- 말씀 채팅(성경 구절 1절 단위) ---------- */
 function clip(text) { return text.length > VERSE_MAX ? `${text.slice(0, VERSE_MAX).trimEnd()}...` : text; }
-function sayVerse(v) {
+function sayVerse(v) { // 말풍선·로그·공유는 서로 독립 — 하나가 예외를 내도 나머지는 실행된다
   if (!state.entered) return;
-  const b = $('#verse-bubble'); b.replaceChildren(); const t = document.createElement('span'); t.textContent = clip(v.text); const r = document.createElement('small'); r.textContent = v.ref; b.append(t, r); b.hidden = false;
-  clearTimeout(verseTimer); verseTimer = setTimeout(() => b.hidden = true, 7000);
-  MP.sendVerse(v); const log = $('#verse-log'); if (log.firstChild?.classList.contains('muted')) log.replaceChildren();
-  const li = document.createElement('li'); li.textContent = `${v.ref} — ${clip(v.text)}`; log.prepend(li); while (log.children.length > 12) log.lastChild.remove();
+  try {
+    const b = $('#verse-bubble'); b.replaceChildren(); const t = document.createElement('span'); t.textContent = clip(v.text); const r = document.createElement('small'); r.textContent = v.ref; b.append(t, r); b.hidden = false;
+    clearTimeout(verseTimer); verseTimer = setTimeout(() => b.hidden = true, 7000);
+  } catch (e) { console.warn('verse bubble', e); }
+  try {
+    const log = $('#verse-log'); if (log.firstChild?.classList.contains('muted')) log.replaceChildren();
+    const li = document.createElement('li'); li.textContent = `${v.ref} — ${clip(v.text)}`; log.prepend(li); while (log.children.length > 12) log.lastChild.remove();
+  } catch (e) { console.warn('verse log', e); }
+  try { MP.sendVerse(v); } catch (e) { console.warn('verse send', e); }
 }
+function pickVerse(v) { try { sayVerse(v); } finally { $('#verse').close(); } }
 function renderVerses() {
-  $('#verse-list').replaceChildren(...VERSES.map((v) => { const row = document.createElement('button'); row.className = 'verse-row'; const ref = document.createElement('b'); ref.textContent = v.ref; const text = document.createElement('span'); text.textContent = v.text; row.append(ref, text); row.onclick = () => { sayVerse(v); $('#verse').close(); }; return row; }));
+  $('#verse-list').replaceChildren(...VERSES.map((v) => { const row = document.createElement('button'); row.className = 'verse-row'; const ref = document.createElement('b'); ref.textContent = v.ref; const text = document.createElement('span'); text.textContent = v.text; row.append(ref, text); row.onclick = () => pickVerse(v); return row; }));
 }
 
 function renderSheetVerses() {
@@ -788,7 +799,7 @@ function renderSheetVerses() {
     const row = document.createElement('button'); row.className = 'verse-row sheet'; const ref = document.createElement('b'); ref.textContent = v.ref;
     const text = document.createElement('span'); text.textContent = v.text; row.append(ref, text);
     if (v.note) { const n = document.createElement('small'); n.textContent = v.note; row.append(n); }
-    row.onclick = () => { sayVerse({ ref: v.ref, text: v.text }); $('#verse').close(); }; return row;
+    row.onclick = () => pickVerse({ ref: v.ref, text: v.text }); return row;
   }));
   $('#verse-sheet').hidden = false;
 }
@@ -870,6 +881,13 @@ function saveProfile(event) {
 
 /* ---------- 카메라 · 렌더 ---------- */
 function projectAt(element, pos) { const v = pos.clone().project(camera); element.style.left = `${(v.x * .5 + .5) * innerWidth}px`; element.style.top = `${(-v.y * .5 + .5) * innerHeight}px`; element.style.visibility = (v.z > 1 || v.z < -1 || Math.abs(v.x) > 1.2) ? 'hidden' : 'visible'; }
+function projectBubble(element, height) { // 말풍선은 카메라가 벽에 붙어도 숨기지 않고 화면 안에 붙잡아 둔다
+  const v = avatar.position.clone().add(new THREE.Vector3(0, height, 0)).project(camera);
+  const half = Math.min(element.offsetWidth || 260, innerWidth) / 2, h = element.offsetHeight || 60;
+  element.style.left = `${Math.min(Math.max((v.x * .5 + .5) * innerWidth, half + 6), innerWidth - half - 6)}px`;
+  element.style.top = `${Math.max((-v.y * .5 + .5) * innerHeight, h + 8)}px`;
+  element.style.visibility = 'visible';
+}
 function projectLabel(element, height) { projectAt(element, avatar.position.clone().add(new THREE.Vector3(0, height, 0))); }
 function updateCamera(dt) {
   const focus = state.entered && state.tvFocus;
@@ -976,7 +994,7 @@ function animate() {
     projectLabel($('#avatar-label'), 2.05); const stuckOn = state.stuck, lift = stuckOn ? .6 : 0, emoteOn = !$('#emote-bubble').hidden;
     if (stuckOn) projectLabel($('#stuck-bubble'), 2.6); // "언제 연습하지?" — 머리 바로 위 고정, 다른 말풍선은 그 위로 밀린다
     if (emoteOn) projectLabel($('#emote-bubble'), 2.55 + lift);
-    if (!$('#verse-bubble').hidden) projectLabel($('#verse-bubble'), (emoteOn ? 3.45 : 2.6) + lift);
+    if (!$('#verse-bubble').hidden) projectBubble($('#verse-bubble'), (emoteOn ? 3.45 : 2.6) + lift);
     projectAt($('#npc-label'), npc.group.position.clone().add(new THREE.Vector3(0, 1.95, 0))); setShown('#npc-label', avatar.position.x > 7);
     if (!$('#npc-bubble').hidden) projectAt($('#npc-bubble'), npc.group.position.clone().add(new THREE.Vector3(0, 2.4, 0)));
   }
@@ -1012,7 +1030,7 @@ function setupInput() {
 }
 
 /* ---------- 곡 목록 (기존) ---------- */
-/* 오늘의 찬양은 랜덤 찬송가로 변경됨(2026-11-11): pickRandomHymn()이 열릴 때마다 뽑는다. */
+/* 오늘의 찬양은 열 때마다 한 곡 뽑기로 변경됨(2026-11-11): pickRandomHymn()이 열릴 때마다 뽑는다. */
 
 /* ---------- 공과 5단계 ---------- */
 function renderLessonList() {
@@ -1145,7 +1163,7 @@ function setupUI() {
   $('#pray-toggle').onclick = togglePrayer; $('#sit').onclick = toggleSit; $('#play-piano').onclick = openTouchPiano; $('#piano-keys').addEventListener('close', () => { for (const k of $('#pk-board').querySelectorAll('.down')) k.classList.remove('down'); releaseAllKeys(); }); $('#perform').onclick = () => state.playing ? stopPlaying() : startPlaying(); $('#conduct').onclick = () => state.conducting || state.conductWait ? stopConducting() : startConducting();
   $('#tv-focus').onclick = () => { state.tvFocus = !state.tvFocus; }; $('#mask').onclick = toggleMask; $('#brew').onclick = openBrew; $('#take').onclick = takeCup; $('#drink').onclick = drink; $('#trash').onclick = trashCup;
   $('#coffee-drink').onclick = () => brew(true); $('#coffee-donate').onclick = () => brew(false);
-  $('#songs-open').onclick = () => { if (state.entered) { pickRandomHymn(); openDialog('#songs'); } }; $('#hymn-again').onclick = () => pickRandomHymn(); $('#hymn-sheet').onclick = () => openHymnSheet(); $('#verse-open').onclick = () => { if (state.entered) openDialog('#verse'); };
+  $('#songs-open').onclick = () => { if (state.entered) { pickRandomHymn(); openDialog('#songs'); } }; initHymnAudio(); $('#hymn-sheet').onclick = () => openHymnSheet(); $('#verse-open').onclick = () => { if (state.entered) openDialog('#verse'); };
   $('#lesson-open').onclick = () => { if (!state.entered) return; state.lessonStep = 0; refreshLesson(); renderLesson(); openDialog('#lesson'); };
   $('#lesson-past').onclick = () => { state.lessonList = true; renderLesson(); };
   $('#lesson-back').onclick = backToThisWeek;

@@ -13,7 +13,7 @@
 
 <!-- TV 리모컨: 데스크톱은 오른쪽, 휴대폰은 상단 -->
 <aside id="remote" aria-label="TV 리모컨">
-  <button id="remote-toggle" class="remote-head" aria-expanded="true"><span>📺 TV 리모컨</span><span class="chev">▾</span></button>
+  <button id="remote-toggle" class="remote-head" aria-expanded="true"><span class="remote-ico">📺</span><span class="remote-lbl">TV 리모컨</span><span class="chev">▾</span></button>
   <div class="remote-body">
     <div class="remote-modes" role="tablist" aria-label="TV 모드">
       <button role="tab" data-mode="past">① 지난 찬양 영상</button>
@@ -71,7 +71,7 @@
   <label class="check"><input type="checkbox" id="profile-teacher"> 교사 선생님이에요 <small>(교사 파트 · 교사실에 들어갈 수 있어요)</small></label>
   <div class="row-buttons"><button type="button" id="profile-random">🎲 랜덤으로</button><button class="primary" id="profile-save">저장</button></div></form></dialog>
 
-<dialog id="songs"><div class="dialog-heading"><div><span class="eyebrow">TODAY'S PRAISE · 랜덤 찬송가</span><h2>오늘의 찬양</h2></div><button class="close" aria-label="닫기">×</button></div><p class="muted">음원을 듣고 악보를 보며 연습해요.</p><div id="random-hymn"><div class="song-row"><span class="song-number" id="hymn-number"></span><div class="song-detail"><strong id="hymn-title"></strong><small>찬송가 · yeram.org</small></div></div><audio id="hymn-audio" controls preload="none"></audio></div><div class="row-buttons"><button id="hymn-again">🎲 다른 찬양</button><button id="hymn-sheet" class="primary">악보 보기 ↗</button></div><p class="fine">찬송가 음원·악보는 yeram.org에서 가져왔어요.</p></dialog>
+<dialog id="songs"><div class="dialog-heading"><div><span class="eyebrow">TODAY'S PRAISE · 오늘의 찬송가</span><h2>오늘의 찬양</h2></div><button class="close" aria-label="닫기">×</button></div><p class="muted">음원을 듣고 악보를 보며 연습해요.</p><div id="random-hymn"><div class="song-row"><span class="song-number" id="hymn-number"></span><div class="song-detail"><strong id="hymn-title"></strong><small>찬송가 · yeram.org</small></div></div><audio id="hymn-audio" controls preload="none" referrerpolicy="no-referrer"></audio></div><div class="row-buttons"><button id="hymn-sheet" class="primary">악보 보기 ↗</button></div><p class="fine">찬송가 음원·악보는 yeram.org에서 가져왔어요.</p></dialog>
 <dialog id="sheet"><div class="dialog-heading"><h2 id="sheet-title">악보</h2><button class="close" aria-label="닫기">×</button></div><div id="sheet-content"></div></dialog>
 
 <dialog id="verse"><div class="dialog-heading"><div><span class="eyebrow">WORD · 성경 구절로 말해요</span><h2>말씀 채팅</h2></div><button class="close" aria-label="닫기">×</button></div><p class="muted">대화는 성경 구절 1절 단위로 이어져요. 구절을 고르면 머리 위에 말풍선이 떠요. (긴 구절은 ...으로 끊겨요)</p><div id="verse-list"></div><div id="verse-sheet" hidden><div class="list-title">찬양반 말씀 목록 <span id="verse-sheet-count"></span></div><div id="verse-sheet-list"></div></div><div class="list-title">내가 한 말씀</div><ol id="verse-log"><li class="muted">아직 없어요.</li></ol></dialog>
