@@ -64,14 +64,31 @@ function openHymnSheet() {
   $('#sheet-content').append(img); openDialog('#sheet');
 }
 
-// 공과 5단계. 제목(title)과 본문(body)을 나중에 채우면 됩니다. body가 빈 문자열이면 안내 문구가 뜹니다.
-const LESSON_STEPS = [
-  { title: '1단계 · (제목을 입력해 주세요)', body: '' },
-  { title: '2단계 · (제목을 입력해 주세요)', body: '' },
-  { title: '3단계 · (제목을 입력해 주세요)', body: '' },
-  { title: '4단계 · (제목을 입력해 주세요)', body: '' },
-  { title: '5단계 · (제목을 입력해 주세요)', body: '' },
-];
+// 공과: lessons/lessons.json에서 show_from이 지났고 가장 최근인 항목을 골라 5단계를 만든다 (코드 변경 없이 매주 전환).
+let lessonList = [];
+async function loadLessons() {
+  try { const r = await fetch('lessons/lessons.json'); const d = await r.json(); lessonList = Array.isArray(d.lessons) ? d.lessons : []; } catch { lessonList = []; }
+}
+function currentLesson() {
+  const now = Date.now(); let best = null, bestT = -Infinity;
+  for (const l of lessonList) { const t = Date.parse(l && l.show_from); if (!Number.isNaN(t) && t <= now && t > bestT) { best = l; bestT = t; } }
+  return best;
+}
+function numbered(qs) { return (qs || []).map((q, k) => `Q${k + 1}. ${q}`).join('\n\n'); }
+function buildLessonSteps(l) {
+  if (!l) return [];
+  const sc = l.scripture ? `본문: ${l.scripture}${l.scripture_full ? ` · ${l.scripture_full}` : ''}` : '';
+  return [
+    { title: '공과 안내', body: [`${l.date || ''} · ${l.lesson_no || ''} ${l.title || ''}`.trim(), sc, l.goal ? `목표: ${l.goal}` : ''].filter(Boolean).join('\n\n') },
+    { title: (l.story && l.story.heading) || 'Story', body: (l.story && l.story.question) || '' },
+    { title: (l.bible && l.bible.heading) || 'Bible', body: numbered(l.bible && l.bible.questions) },
+    { title: '말씀정리', img: l.summary_image || '' },
+    { title: (l.act && l.act.heading) || 'Act', body: numbered(l.act && l.act.questions) },
+  ];
+}
+let LESSON_STEPS = [];
+const LESSON_EMPTY = '아직 본문 원고가 등록되지 않았어요. 원고가 준비되면 이 자리에 나타나요.';
+function refreshLesson() { const l = currentLesson(); LESSON_STEPS = buildLessonSteps(l); state.lessonMeta = l; if (state.lessonStep >= LESSON_STEPS.length) state.lessonStep = 0; }
 
 // 보물찾기: 숨겨진 황금 음표 5개의 위치 [x, y, z]
 const TREASURE_NOTES = [
@@ -983,9 +1000,19 @@ function setupInput() {
 
 /* ---------- 공과 5단계 ---------- */
 function renderLesson() {
+  const l = state.lessonMeta, body = $('#lesson-body');
+  if (!LESSON_STEPS.length) {
+    $('#lesson-eyebrow').textContent = '공과'; $('#lesson-title').textContent = '공과'; body.textContent = LESSON_EMPTY; body.classList.add('empty'); body.classList.remove('img');
+    $('#lesson-dots').replaceChildren(); $('#lesson-prev').disabled = true; $('#lesson-next').textContent = '닫기'; return;
+  }
   const i = state.lessonStep, step = LESSON_STEPS[i], n = LESSON_STEPS.length;
-  $('#lesson-eyebrow').textContent = `공과 ${i + 1} / ${n}`; $('#lesson-title').textContent = step.title;
-  $('#lesson-body').textContent = step.body || '아직 본문 원고가 등록되지 않았어요. 원고가 준비되면 이 자리에 나타나요.'; $('#lesson-body').classList.toggle('empty', !step.body);
+  $('#lesson-eyebrow').textContent = `공과 ${l.lesson_no || ''} · ${i + 1} / ${n}`; $('#lesson-title').textContent = `${l.title || '공과'} — ${step.title}`;
+  body.classList.remove('empty'); body.classList.toggle('img', 'img' in step);
+  if ('img' in step) {
+    const img = document.createElement('img'); img.className = 'lesson-img'; img.alt = '말씀정리';
+    img.onerror = () => { body.classList.add('empty'); body.classList.remove('img'); body.textContent = '말씀정리 이미지를 불러오지 못했어요'; };
+    body.replaceChildren(img); if (step.img) img.src = step.img; else img.onerror();
+  } else { body.textContent = step.body || LESSON_EMPTY; body.classList.toggle('empty', !step.body); }
   $('#lesson-dots').replaceChildren(...LESSON_STEPS.map((_, k) => { const d = document.createElement('button'); d.className = `dot${k === i ? ' on' : ''}${k < i ? ' past' : ''}`; d.textContent = k + 1; d.setAttribute('aria-label', `${k + 1}단계`); d.onclick = () => { state.lessonStep = k; renderLesson(); }; return d; }));
   $('#lesson-prev').disabled = i === 0; $('#lesson-next').textContent = i === n - 1 ? '공과 마치기 ✓' : '다음 →';
 }
@@ -1085,13 +1112,13 @@ function setupUI() {
   $('#tv-focus').onclick = () => { state.tvFocus = !state.tvFocus; }; $('#mask').onclick = toggleMask; $('#brew').onclick = openBrew; $('#take').onclick = takeCup; $('#drink').onclick = drink; $('#trash').onclick = trashCup;
   $('#coffee-drink').onclick = () => brew(true); $('#coffee-donate').onclick = () => brew(false);
   $('#songs-open').onclick = () => { if (state.entered) { pickRandomHymn(); openDialog('#songs'); } }; $('#hymn-again').onclick = () => pickRandomHymn(); $('#hymn-sheet').onclick = () => openHymnSheet(); $('#verse-open').onclick = () => { if (state.entered) openDialog('#verse'); };
-  $('#lesson-open').onclick = () => { if (!state.entered) return; renderLesson(); openDialog('#lesson'); };
+  $('#lesson-open').onclick = () => { if (!state.entered) return; refreshLesson(); renderLesson(); openDialog('#lesson'); };
   $('#lesson-prev').onclick = () => { state.lessonStep = Math.max(0, state.lessonStep - 1); renderLesson(); };
-  $('#lesson-next').onclick = () => { if (state.lessonStep >= LESSON_STEPS.length - 1) { $('#lesson').close(); toast('📖 공과 5단계를 모두 마쳤어요. 수고했어요!'); state.lessonStep = 0; } else { state.lessonStep++; renderLesson(); } };
+  $('#lesson-next').onclick = () => { if (state.lessonStep >= LESSON_STEPS.length - 1) { $('#lesson').close(); if (LESSON_STEPS.length) toast('📖 공과 5단계를 모두 마쳤어요. 수고했어요!'); state.lessonStep = 0; } else { state.lessonStep++; renderLesson(); } };
   $('#treasure-pill').onclick = () => { renderTreasure(); openDialog('#treasure'); };
   $('#help').onclick = () => openDialog('#guide');
   document.addEventListener('visibilitychange', () => { keys.clear(); joystick.set(0, 0); });
-  renderVerses(); loadVerseSheet(); loadPrayers(); renderTreasure(); setupTv(); $('#entry').showModal();
+  renderVerses(); loadVerseSheet(); loadPrayers(); loadLessons().then(refreshLesson); renderTreasure(); setupTv(); $('#entry').showModal();
   setInterval(() => { if (board) drawBoard(); }, 60000); // 일요일 12시 경과 시 자동 교체
 }
 function init() {

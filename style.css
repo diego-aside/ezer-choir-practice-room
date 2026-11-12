@@ -52,7 +52,7 @@ button.primary{width:100%}.ghost{background:transparent;border:1px dashed #b9c1a
 #tv-open{font-size:11px;color:#4a6a52;text-decoration:underline;text-underline-offset:3px}
 /* 공과 · 보물찾기 · 말씀 · 커피 */
 .steps{display:flex;gap:7px;margin:14px 0}.dot{width:34px;height:34px;padding:0;border-radius:50%;font-size:12px;border:1px solid #d9dfce;background:#f5f6f0;display:inline-grid;place-items:center}.dot.on{background:#445d48;color:#fff;border-color:#445d48}.dot.past{background:#dfe8d4}
-.lesson-body{min-height:150px;background:#f5f6f0;border-radius:12px;padding:18px;font-size:13px;line-height:1.95;white-space:pre-wrap;color:#3e4a3a}.lesson-body.empty{color:#9aa190}
+.lesson-body{min-height:150px;background:#f5f6f0;border-radius:12px;padding:18px;font-size:13px;line-height:1.95;white-space:pre-wrap;color:#3e4a3a}.lesson-body.empty{color:#9aa190}.lesson-body.img{padding:0;background:none}.lesson-img{display:block;width:100%;height:auto;border-radius:12px}
 #treasure-msg{font-size:14px!important;color:#53624b!important}
 #verse-list{display:flex;flex-direction:column;gap:6px;max-height:42dvh;overflow:auto;margin-top:12px}.verse-row{display:flex;gap:10px;text-align:left;padding:10px 12px;border-radius:10px;background:#f5f6f0;font-size:12px;line-height:1.55}.verse-row b{flex:0 0 52px;color:#53624b;font-size:11px}.verse-row span{flex:1}
 #verse-log{margin:6px 0 0;padding-left:18px;font-size:11.5px;line-height:1.7;color:#59634f}
