@@ -737,10 +737,46 @@ function stopPrayer(silent = false) {
   else if (!silent) toast(`기도를 마쳤어요 (${fmtTime(sec)}). 커피는 ${PRAY_COFFEE_SEC / 60}분 이상 기도해야 해요.`);
 }
 // 기도 중 친구 기도제목(prayers.json) — 내 화면에만 표시, 20초마다 교체. 로딩 실패 시 패널 없음.
+// 쉼표 단위로 줄을 나누고, 19자 넘는 조각은 어절(조사/어미 포함) 경계에서만 끊는다. HTML 이스케이프 후 <br>로 연결.
+function wrapPrayerText(text, max = 19) {
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const PART = /(에서|에게|하고|으로|아서|어서|[를을는은가이도와과에의로고면])$/;
+  const splitLong = (w) => { // 공백 없는 긴 어절은 조사/어미 경계에서 끊는다
+    const out = []; let rest = w;
+    while (rest.length > max) {
+      let cut = -1;
+      for (let k = max; k >= 2; k--) if (PART.test(rest.slice(0, k))) { cut = k; break; }
+      if (cut < 0) cut = max;
+      out.push(rest.slice(0, cut)); rest = rest.slice(cut);
+    }
+    return out.concat(rest);
+  };
+  const fill = (words, lim) => {
+    const lines = []; let cur = '';
+    for (const w of words) {
+      if (cur && (cur + ' ' + w).length > lim) { lines.push(cur); cur = w; } else cur = cur ? cur + ' ' + w : w;
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  };
+  const lines = [];
+  for (const c of String(text).trim().split(/(?<=,)\s*/).filter(Boolean)) {
+    if (c.length <= max) { lines.push(c); continue; }
+    const words = c.split(/\s+/).flatMap((w) => (w.length > max ? splitLong(w) : [w]));
+    const n = Math.ceil(c.length / max);
+    let best = fill(words, max);
+    for (let lim = Math.ceil(c.length / n); lim < max; lim++) { // 줄 길이를 고르게
+      const r = fill(words, lim);
+      if (r.length <= n && r.every((l) => l.length <= max)) { best = r; break; }
+    }
+    lines.push(...best);
+  }
+  return lines.map(esc).join('<br>');
+}
 function nextPrayer() {
   let i = Math.floor(Math.random() * prayers.length);
   if (prayers.length > 1 && i === lastPrayer) i = (i + 1 + Math.floor(Math.random() * (prayers.length - 1))) % prayers.length;
-  lastPrayer = i; $('#prayer-text').textContent = prayers[i];
+  lastPrayer = i; $('#prayer-text').innerHTML = wrapPrayerText(prayers[i]);
 }
 function showPrayer() {
   clearInterval(prayerTimer); if (!prayers.length) return;
