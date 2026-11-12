@@ -1253,7 +1253,7 @@ function setupUI() {
   $('#lesson-past').onclick = () => { state.lessonList = true; renderLesson(); };
   $('#lesson-back').onclick = backToThisWeek;
   $('#lesson-prev').onclick = () => { state.lessonStep = Math.max(0, state.lessonStep - 1); renderLesson(); };
-  $('#lesson-next').onclick = () => { if (state.lessonStep >= LESSON_STEPS.length - 1) { $('#lesson').close(); if (LESSON_STEPS.length) toast('📖 공과 5단계를 모두 마쳤어요. 수고했어요!'); state.lessonStep = 0; } else { state.lessonStep++; renderLesson(); } };
+  $('#lesson-next').onclick = () => { if (state.lessonStep >= LESSON_STEPS.length - 1) { $('#lesson').close(); if (LESSON_STEPS.length) toast('📚 공과 5단계를 모두 마쳤어요. 수고했어요!'); state.lessonStep = 0; } else { state.lessonStep++; renderLesson(); } };
   $('#treasure-pill').onclick = () => { renderTreasure(); openDialog('#treasure'); };
   $('#help').onclick = () => openDialog('#guide');
   document.addEventListener('visibilitychange', () => { keys.clear(); joystick.set(0, 0); });
