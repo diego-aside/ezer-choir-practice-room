@@ -7,6 +7,19 @@ body[data-device=mobile] #joystick{display:block}body[data-device=mobile] .movem
 /* ===== v2 추가 ===== */
 #scene{background:#eae6dc}
 .only-mobile,.guide-mobile{display:none}body[data-device=mobile] .only-mobile{display:inline}body[data-device=mobile] .only-desktop,body[data-device=mobile] .guide-desktop{display:none}body[data-device=mobile] .guide-mobile{display:block}
+body[data-device=mobile] kbd{display:none}
+#piano-keys{width:calc(100% - 12px);max-width:1200px;padding:12px 14px 16px;border-radius:18px;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#piano-keys .dialog-heading{margin-bottom:8px}
+.pk-rotate{display:none;margin:0 0 8px;font-size:11px;color:#6e7565;text-align:center}
+@media (orientation:portrait){.pk-rotate{display:block}}
+#pk-scroll{overflow-x:auto;overflow-y:hidden}
+#pk-board{position:relative;min-width:924px;height:min(52dvh,260px);background:#1b1c1e;border-radius:6px}
+.pk-white,.pk-black{position:absolute;top:4px;touch-action:pan-x;cursor:pointer}
+.pk-white{height:calc(100% - 4px);background:#f7f3e6;border:1px solid #bdb9a8;border-radius:0 0 6px 6px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;font-size:11px;color:#6b6f62;box-sizing:border-box}
+.pk-white.down{background:#d9e3cf}
+.pk-white span{pointer-events:none}
+.pk-black{height:62%;background:#202124;border-radius:0 0 4px 4px;z-index:2;box-shadow:0 3px 5px #0006}
+.pk-black.down{background:#4c5a48}
 button.primary{width:100%}.ghost{background:transparent;border:1px dashed #b9c1ad;width:100%;margin-top:9px;font-size:12px;color:#6b7761}.muted{color:#858b7c}
 .pill{border-radius:24px;padding:10px 15px;font-size:12px;background:#fff9;border:1px solid #fff8;color:#626c60;white-space:nowrap}.pill.done{background:#f6e6a6;color:#6b5410}.pill b{font-weight:700}
 /* 입장·프로필 */

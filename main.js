@@ -168,6 +168,7 @@ function detectDevice() {
   if (navigator.userAgentData?.mobile || /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || touchMac) return 'mobile';
   return matchMedia('(pointer:coarse)').matches && innerWidth < 1024 ? 'mobile' : 'desktop';
 }
+function isMobile() { return document.body.dataset.device === 'mobile'; }
 function applyDevice() {
   const device = detectDevice();
   if (document.body.dataset.device !== device) {
@@ -264,18 +265,37 @@ function pressKey(midi) { const n = (keyHeld.get(midi) || 0) + 1; keyHeld.set(mi
 function releaseKey(midi) { const n = (keyHeld.get(midi) || 0) - 1; if (n > 0) { keyHeld.set(midi, n); return; } if (!keyHeld.has(midi)) return; keyHeld.delete(midi); noteOff(midi); keyVisual(midi, false); }
 function releaseAllKeys() { for (const midi of [...keyHeld.keys()]) { keyHeld.delete(midi); noteOff(midi); keyVisual(midi, false); } pointerKeys.clear(); kbDown.clear(); }
 function pianoPlayable() { return state.seated === BENCH; }
+// 모바일 터치 피아노 오버레이: 건반 DOM은 처음 열 때 한 번만 만든다. 포인터는 이 다이얼로그 안에서만 처리(modal이라 캔버스로 안 간다).
+function buildTouchPiano() {
+  const board = $('#pk-board'); if (board.childElementCount) return;
+  const NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'], WHITE_SEMI = [0, 2, 4, 5, 7, 9, 11], held = new Map(); // held: pointerId -> midi
+  const down = (e) => { if (held.has(e.pointerId)) return; const m = Number(e.currentTarget.dataset.midi); held.set(e.pointerId, m); e.currentTarget.classList.add('down'); pressKey(m); };
+  const up = (e) => { if (!held.has(e.pointerId)) return; const m = held.get(e.pointerId); held.delete(e.pointerId); e.currentTarget.classList.remove('down'); releaseKey(m); };
+  const bind = (el, midi) => { el.dataset.midi = midi; el.addEventListener('pointerdown', down); for (const t of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(t, up); el.addEventListener('contextmenu', (e) => e.preventDefault()); board.appendChild(el); };
+  for (let i = 0; i < WHITE_KEYS; i++) {
+    const w = document.createElement('div'); w.className = 'pk-white'; w.style.left = `${i / WHITE_KEYS * 100}%`; w.style.width = `${100 / WHITE_KEYS}%`;
+    const label = document.createElement('span'); label.textContent = NAMES[i % 7] + (i % 7 === 0 ? 3 + Math.floor(i / 7) : ''); w.appendChild(label);
+    bind(w, KEY_BASE_MIDI + Math.floor(i / 7) * 12 + WHITE_SEMI[i % 7]);
+  }
+  for (let i = 0; i < WHITE_KEYS - 1; i++) {
+    if ([2, 6].includes(i % 7)) continue;
+    const b = document.createElement('div'), bw = 100 / WHITE_KEYS * .6; b.className = 'pk-black'; b.style.width = `${bw}%`; b.style.left = `${(i + 1) / WHITE_KEYS * 100 - bw / 2}%`;
+    bind(b, KEY_BASE_MIDI + Math.floor(i / 7) * 12 + WHITE_SEMI[i % 7] + 1);
+  }
+}
+function openTouchPiano() { if (!pianoPlayable()) return; ensureAudio(); buildTouchPiano(); openDialog('#piano-keys'); }
 function pianoKeyAt(e) { // 화면 좌표 → 건반 레이캐스트(검은 건반이 위에 있어 먼저 걸린다)
   pointer.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); raycaster.setFromCamera(pointer, camera);
   const hit = raycaster.intersectObjects(pianoKeys, false)[0]; return hit ? hit.object.userData.key : null;
 }
 function benchLocked() { return state.seated === BENCH && state.profile?.part === 'accompanist' && !state.pianoUnlocked; }
 function seatLocked() { if (!benchLocked()) return false; toast(LOCK_MSG); return true; }
-function dropSeat() { if (state.seated === BENCH) { MP.releaseSeat(); releaseAllKeys(); } state.seated = null; }
+function dropSeat() { if (state.seated === BENCH) { MP.releaseSeat(); releaseAllKeys(); if ($('#piano-keys').open) $('#piano-keys').close(); } state.seated = null; }
 function sitBench() {
   state.seated = BENCH; MP.claimSeat(BENCH_SEAT); state.target = null; state.queue = []; stopPlaying(); state.pianoUnlocked = false;
   const now = performance.now(); for (const id of condSince.keys()) condSince.set(id, now); // 앉은 뒤부터 60초 연속 지휘해야 풀린다
   avatar.position.set(BENCH.x, BENCH.y, BENCH.z); avatar.rotation.y = BENCH.rotation; ensureAudio();
-  toast(state.profile.part === 'accompanist' ? '🎹 피아노 앞에 앉았어요. 건반을 눌러 연주해 보세요.' : '🎹 피아노 벤치에 앉았어요. 건반을 눌러(또는 A W S E D F T G Y H U J K) 연주해 보세요.');
+  toast(state.profile.part === 'accompanist' ? '🎹 피아노 앞에 앉았어요. 건반을 눌러 연주해 보세요.' : isMobile() ? '🎹 피아노 벤치에 앉았어요. 건반을 눌러 연주해 보세요.' : '🎹 피아노 벤치에 앉았어요. 건반을 눌러(또는 A W S E D F T G Y H U J K) 연주해 보세요.');
 }
 // 지휘 신호(MP onRemoteConduct): 'start'(타이머 재시작 + 자기 자리로 모이기) · 'stop' · 'hymn:번호'(찬양이 없는 주의 랜덤 찬송가 공유)
 function conductSignal(id, kind) {
@@ -866,7 +886,7 @@ function updateDoor(dt) {
 }
 function updateContext(now) {
   const seated = Boolean(state.seated), near = nearestChair(), nearBench = benchFree() && benchDist() <= 1.45 && benchDist() <= near.d;
-  setShown('#sit', seated || nearBench || near.d <= 1.45); setText('#sit', seated ? (benchLocked() ? '🔒 일어설 수 없어요' : state.seated === BENCH ? '일어서기 [Esc]' : '일어서기 [E]') : nearBench ? '🎹 피아노 벤치에 앉기 [E]' : '의자에 앉기 [E]');
+  setShown('#sit', seated || nearBench || near.d <= 1.45); { const mob = isMobile(); setText('#sit', seated ? (benchLocked() ? '🔒 일어설 수 없어요' : mob ? '일어서기' : state.seated === BENCH ? '일어서기 [Esc]' : '일어서기 [E]') : nearBench ? (mob ? '🎹 피아노 벤치에 앉기' : '🎹 피아노 벤치에 앉기 [E]') : (mob ? '의자에 앉기' : '의자에 앉기 [E]')); setShown('#play-piano', mob && state.seated === BENCH); }
   setShown('#stuck-bubble', state.stuck); // 반주자가 피아노에 잠긴 동안은 시간 제한 없이 계속 표시
   setShown('#tv-focus', Math.hypot(avatar.position.x - TV.x, avatar.position.z + 6.1) <= 6.5); setText('#tv-focus', state.tvFocus ? '↩ 시점 되돌리기' : '📺 TV 크게 보기');
   const isOrch = state.profile.part === 'orchestra' && instrumentObj;
@@ -1044,7 +1064,7 @@ function setupUI() {
   $('#profile-parts').addEventListener('change', syncInstrumentField); $('#profile-form').addEventListener('submit', saveProfile);
   $('#profile-random').onclick = () => { const r = randomProfile(); $('#profile-name').value = r.nickname; const radio = document.querySelector(`input[name="pf-part"][value="${r.part}"]`); radio.checked = true; if (r.instrument) document.querySelector(`input[name="pf-inst"][value="${r.instrument}"]`).checked = true; syncInstrumentField(); };
   document.querySelectorAll('[data-emote]').forEach((b) => b.onclick = () => emote(b.dataset.emote));
-  $('#pray-toggle').onclick = togglePrayer; $('#sit').onclick = toggleSit; $('#perform').onclick = () => state.playing ? stopPlaying() : startPlaying(); $('#conduct').onclick = () => state.conducting || state.conductWait ? stopConducting() : startConducting();
+  $('#pray-toggle').onclick = togglePrayer; $('#sit').onclick = toggleSit; $('#play-piano').onclick = openTouchPiano; $('#piano-keys').addEventListener('close', () => { for (const k of $('#pk-board').querySelectorAll('.down')) k.classList.remove('down'); releaseAllKeys(); }); $('#perform').onclick = () => state.playing ? stopPlaying() : startPlaying(); $('#conduct').onclick = () => state.conducting || state.conductWait ? stopConducting() : startConducting();
   $('#tv-focus').onclick = () => { state.tvFocus = !state.tvFocus; }; $('#mask').onclick = toggleMask; $('#brew').onclick = openBrew; $('#take').onclick = takeCup; $('#drink').onclick = drink; $('#trash').onclick = trashCup;
   $('#coffee-drink').onclick = () => brew(true); $('#coffee-donate').onclick = () => brew(false);
   $('#songs-open').onclick = () => { if (state.entered) { pickRandomHymn(); openDialog('#songs'); } }; $('#hymn-again').onclick = () => pickRandomHymn(); $('#hymn-sheet').onclick = () => openHymnSheet(); $('#verse-open').onclick = () => { if (state.entered) openDialog('#verse'); };

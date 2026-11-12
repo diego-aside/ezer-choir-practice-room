@@ -38,6 +38,7 @@
 <div id="prayer-card" hidden><small>🙏 친구의 기도제목</small><p id="prayer-text"></p><em>이 친구를 위해 함께 기도해요</em></div>
 <div id="hud-status"><span id="chip-pray" class="chip" hidden></span><span id="chip-coffee" class="chip" hidden>☕ 커피 권한 있음</span><span id="chip-mask" class="chip" hidden>🎭 교사로 위장 중</span></div>
 <div id="context">
+  <button id="play-piano" hidden>🎹 연주하기</button>
   <button id="sit" hidden>의자에 앉기 <kbd>E</kbd></button>
   <button id="tv-focus" hidden>📺 TV 크게 보기</button>
   <button id="perform" hidden>🎻 연주하기</button>
@@ -81,10 +82,12 @@
 
 <dialog id="coffee"><div class="dialog-heading"><div><span class="eyebrow">CAPSULE COFFEE</span><h2>커피를 내릴게요</h2></div><button class="close" aria-label="닫기">×</button></div><p>기도로 얻은 커피예요. 누구를 위한 커피인가요?</p><div class="choice"><button id="coffee-drink" class="primary">☕ 내가 마실게요<small>컵을 들고 다니며 5모금까지 마실 수 있어요</small></button><button id="coffee-donate">🎁 기부할게요<small>친구·선생님을 위해 책상에 올려 둬요. 누구나 가져가 마실 수 있어요</small></button></div></dialog>
 
+<dialog id="piano-keys"><div class="dialog-heading"><span class="eyebrow">PIANO · C3~B5</span><button class="close" aria-label="닫기">✕</button></div><p class="pk-rotate">휴대폰을 가로로 돌리면 건반이 더 넓게 보여요</p><div id="pk-scroll"><div id="pk-board"></div></div></dialog>
+
 <dialog id="guide"><div class="dialog-heading"><h2>편안하게 둘러보세요</h2><button class="close" aria-label="닫기">×</button></div>
   <div class="guide-desktop"><span class="eyebrow">컴퓨터 버전</span><p>바닥을 클릭하면 그곳으로 걸어갑니다. 화면을 드래그해 둘러보고, 휠로 거리를 조절하세요. 키보드 W A S D와 방향키로도 움직일 수 있어요.</p></div>
   <div class="guide-mobile"><span class="eyebrow">휴대폰 버전</span><p>왼쪽 아래 조이스틱으로 움직여요. 화면을 손가락으로 밀면 시점이 돌아가고, 바닥을 톡 누르면 그곳으로 걸어가요. 위쪽 'TV 리모컨'은 눌러서 펼치고 접을 수 있어요.</p></div>
-  <p>찬양대석 근처에서 E(또는 앉기 버튼)로 앉아요. 오른쪽(휴대폰은 위쪽) 'TV 리모컨'에서 모드를 고르면 정해진 찬양이 방 안 TV에서 자동으로 재생돼요.</p>
+  <p>찬양대석 근처에서 <span class="only-desktop">E(또는 앉기 버튼)</span><span class="only-mobile">앉기 버튼</span>으로 앉아요. 오른쪽(휴대폰은 위쪽) 'TV 리모컨'에서 모드를 고르면 정해진 찬양이 방 안 TV에서 자동으로 재생돼요.</p>
   <p>교사실은 교사 선생님이나 '교사로 위장하기'를 누른 사람만 들어갈 수 있어요. 선생님께 들키면 바로 쫓겨나요! 커피는 3분 이상 기도해야 내릴 수 있어요.</p>
   <p>연습실 곳곳에 숨은 황금 음표 5개를 찾아 보세요.</p></dialog>
 <script>document.addEventListener('error',function(e){if(e.target.tagName==='SCRIPT'){var t=document.getElementById('toast');t.hidden=false;t.textContent='필요한 스크립트를 불러오지 못했어요. 인터넷 연결과 CDN 접근을 확인해 주세요.';var b=document.getElementById('enter-button');if(b.disabled)b.textContent='연결을 확인하고 새로고침해 주세요.';}},true);</script>
