@@ -178,7 +178,7 @@ const state = {
 };
 let renderer, cssRenderer, camera, scene, cssScene, avatar, torso, leftArm, rightArm, head, marker, screenObject, floor;
 let me, npc, doorPivot, machineLed, board, boardTex;
-let prayers = [], sheetVerses = [], prayerTimer, lastPrayer = -1;
+let prayers = [], prayerTimer, lastPrayer = -1;
 let toastTimer, verseTimer, npcTimer, activePointer = null, pointerStart = null, lastPointer = null;
 let instrumentObj = null, bowObj = null, heldCup = null, draw = null;
 const cameraWalls = [], cameraProbe = new THREE.Raycaster();
@@ -828,20 +828,69 @@ function renderVerses() {
   $('#verse-list').replaceChildren(...VERSES.map((v) => { const row = document.createElement('button'); row.className = 'verse-row'; const ref = document.createElement('b'); ref.textContent = v.ref; const text = document.createElement('span'); text.textContent = v.text; row.append(ref, text); row.onclick = () => pickVerse(v); return row; }));
 }
 
-function renderSheetVerses() {
-  if (!sheetVerses.length) return;
-  $('#verse-sheet-count').textContent = `(${sheetVerses.length})`;
-  $('#verse-sheet-list').replaceChildren(...sheetVerses.map((v) => {
-    const row = document.createElement('button'); row.className = 'verse-row sheet'; const ref = document.createElement('b'); ref.textContent = v.ref;
-    const text = document.createElement('span'); text.textContent = v.text; row.append(ref, text);
-    if (v.note) { const n = document.createElement('small'); n.textContent = v.note; row.append(n); }
-    row.onclick = () => pickVerse({ ref: v.ref, text: v.text }); return row;
-  }));
-  $('#verse-sheet').hidden = false;
+/* ---------- 오늘의 말씀 카드 덱 ---------- */
+const DECK = { cards: [], i: 0, liked: new Set(JSON.parse(localStorage.getItem('verse-liked-cards') || '[]')), counts: new Map(), cfg: null, poll: 0, busy: false, ok: false };
+async function deckCfg() { // multiplayer.js가 노출한 window.MP_CONFIG를 그대로 읽어 쓴다(키를 새로 하드코딩하지 않음)
+  if (DECK.cfg) return DECK.cfg;
+  const m = window.MP_CONFIG;
+  DECK.cfg = m && m.url && m.anonKey ? { url: String(m.url).replace(/\/+$/, ''), key: m.anonKey } : { url: '', key: '' };
+  return DECK.cfg;
 }
-async function loadVerseSheet() {
-  try { const r = await fetch('verses.json'); const d = await r.json(); sheetVerses = (d.verses || []).filter((v) => v && v.ref && v.text); } catch { sheetVerses = []; }
-  renderSheetVerses();
+function deckHeaders(c) { return { apikey: c.key, Authorization: `Bearer ${c.key}`, 'Content-Type': 'application/json' }; }
+async function deckLoadCounts() {
+  const c = await deckCfg(); if (!c.url) { renderDeckLike(); return; }
+  try { const r = await fetch(`${c.url}/rest/v1/verse_card_likes?select=card_id,likes`, { headers: deckHeaders(c) }); if (!r.ok) throw new Error(r.status); const rows = await r.json(); DECK.counts = new Map(rows.map((x) => [x.card_id, x.likes])); DECK.ok = true; } catch { DECK.ok = false; DECK.counts = new Map(); }
+  renderDeckLike();
+}
+function renderDeckLike() {
+  const card = DECK.cards[DECK.i]; if (!card) return;
+  const liked = DECK.liked.has(card.id);
+  $('#deck-heart').textContent = liked ? '♥' : '♡'; $('#deck-like').classList.toggle('liked', liked);
+  $('#deck-likes').textContent = DECK.ok ? (DECK.counts.get(card.id) ?? 0) : '–';
+}
+async function deckToggleLike() {
+  const card = DECK.cards[DECK.i]; if (!card || DECK.busy) return;
+  const c = await deckCfg(); const adding = !DECK.liked.has(card.id); DECK.busy = true;
+  try {
+    if (!c.url) throw new Error('no config');
+    const r = await fetch(`${c.url}/rest/v1/rpc/increment_verse_like`, { method: 'POST', headers: deckHeaders(c), body: JSON.stringify({ p_card_id: card.id, p_delta: adding ? 1 : -1 }) });
+    if (!r.ok) throw new Error(r.status);
+    const n = await r.json(); DECK.ok = true; DECK.counts.set(card.id, Number(n));
+    if (adding) DECK.liked.add(card.id); else DECK.liked.delete(card.id);
+    localStorage.setItem('verse-liked-cards', JSON.stringify([...DECK.liked]));
+  } catch { DECK.ok = false; toast('좋아요를 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
+  DECK.busy = false; renderDeckLike();
+}
+function showDeckCard() {
+  const card = DECK.cards[DECK.i]; if (!card) return;
+  $('#deck-img').src = card.img; $('#deck-ref').textContent = card.ref; $('#deck-count').textContent = `${DECK.i + 1} / ${DECK.cards.length}`;
+  const a = $('#deck-save'); a.href = card.img; a.download = `오늘의말씀-${card.ref.replace(/[\\/:*?"<>|\s]+/g, '_')}.png`;
+  const next = DECK.cards[(DECK.i + 1) % DECK.cards.length]; if (next) new Image().src = next.img;
+  renderDeckLike();
+}
+function deckMove(d) { if (!DECK.cards.length) return; DECK.i = (DECK.i + d + DECK.cards.length) % DECK.cards.length; showDeckCard(); }
+async function openDeck() {
+  if (!DECK.cards.length) {
+    try { const r = await fetch('verse-cards.json'); DECK.cards = (await r.json()).cards || []; } catch { DECK.cards = []; }
+    if (!DECK.cards.length) { toast('말씀 카드를 불러오지 못했어요.'); return; }
+  }
+  for (let j = DECK.cards.length - 1; j > 0; j--) { const k = Math.floor(Math.random() * (j + 1)); [DECK.cards[j], DECK.cards[k]] = [DECK.cards[k], DECK.cards[j]]; }
+  DECK.i = 0; showDeckCard(); openDialog('#verse-deck');
+  deckLoadCounts(); clearInterval(DECK.poll); DECK.poll = setInterval(deckLoadCounts, 30000); /* 실시간 대신 30초 폴링 */
+  if (!localStorage.getItem('verse-deck-hint-seen')) {
+    localStorage.setItem('verse-deck-hint-seen', '1');
+    const hint = $('#deck-hint'); hint.hidden = false; hint.classList.remove('fade');
+    setTimeout(() => hint.classList.add('fade'), 2000); setTimeout(() => { hint.hidden = true; }, 2500);
+  }
+}
+function initDeck() {
+  $('#deck-open').onclick = () => { if (state.entered) openDeck(); };
+  $('#deck-prev').onclick = () => deckMove(-1); $('#deck-next').onclick = () => deckMove(1); $('#deck-like').onclick = deckToggleLike;
+  $('#verse-deck').addEventListener('close', () => clearInterval(DECK.poll));
+  const stage = $('#deck-stage'); let sx = null;
+  stage.addEventListener('pointerdown', (e) => { if (!e.target.closest('.deck-arrow')) sx = e.clientX; });
+  stage.addEventListener('pointerup', (e) => { if (sx === null) return; const dx = e.clientX - sx; sx = null; if (Math.abs(dx) >= 60) deckMove(dx < 0 ? 1 : -1); }); /* 왼쪽으로 밀면 다음, 오른쪽이면 이전 */
+  stage.addEventListener('pointercancel', () => { sx = null; });
 }
 
 /* ---------- 교사실 · 위장 · 커피 ---------- */
@@ -1208,7 +1257,7 @@ function setupUI() {
   $('#treasure-pill').onclick = () => { renderTreasure(); openDialog('#treasure'); };
   $('#help').onclick = () => openDialog('#guide');
   document.addEventListener('visibilitychange', () => { keys.clear(); joystick.set(0, 0); });
-  renderVerses(); loadVerseSheet(); loadPrayers(); loadLessons().then(refreshLesson); renderTreasure(); setupTv(); $('#entry').showModal();
+  renderVerses(); initDeck(); loadPrayers(); loadLessons().then(refreshLesson); renderTreasure(); setupTv(); $('#entry').showModal();
   setInterval(() => { if (board) drawBoard(); }, 60000); // 일요일 12시 경과 시 자동 교체
 }
 function init() {

@@ -12,6 +12,7 @@ const MP_CONFIG = {
   anonKey: 'sb_publishable_115NfIgoxpPA7fTx4wQSNQ_xcLLqbMF', // 공개용 publishable key
   channel: 'ezer-choir-room', // 방 이름(채널명). 그대로 두면 된다.
 };
+window.MP_CONFIG = MP_CONFIG; // 다른 스크립트(main.js 말씀 카드 덱 좋아요)가 같은 설정을 읽을 수 있게 노출
 
 const MP_TRACK_MS = 100;   // 내 위치·상태를 보내는 간격(초당 10번)
 const MP_MAX_PEOPLE = 30;  // 정원(의자 30석)
