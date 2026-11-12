@@ -14,13 +14,13 @@ const q = (s) => (cache[s] ??= $(s));
 const parts = {
   conductor: { name: '지휘자', icon: '🎼', color: 0x7d6b9c, spawn: [-1.2, -3.4] },
   accompanist: { name: '반주자', icon: '🎹', color: 0x809981, spawn: [-6.7, -0.8] },
-  orchestra: { name: '오케스트라', icon: '🎻', color: 0x3f8088, spawn: [6.4, -1.0] },
+  orchestra: { name: '앙상블', icon: '🎻', color: 0x3f8088, spawn: [6.4, -1.0] },
   soprano: { name: '소프라노', icon: '🎤', color: 0xd0899a, spawn: [-3.9, 0.2] },
   alto: { name: '알토', icon: '🎵', color: 0xc6ab63, spawn: [-1.6, 0.2] },
   tenor: { name: '테너', icon: '🎶', color: 0x829eb5, spawn: [1.6, 0.2] },
   bass: { name: '베이스', icon: '🎙️', color: 0x8b6a55, spawn: [3.9, 0.2] },
 };
-// 올해 오케스트라 악기는 3가지뿐.
+// 올해 앙상블 악기는 3가지뿐.
 const instruments = {
   flute: { name: '플룻', icon: '🎶' },
   clarinet: { name: '클라리넷', icon: '🎵' },
@@ -44,6 +44,9 @@ let currentHymn = null;
 function pickRandomHymn() {
   let h;
   do { h = HYMNS[Math.floor(Math.random() * HYMNS.length)]; } while (HYMNS.length > 1 && h === currentHymn);
+  loadHymn(h);
+}
+function loadHymn(h) { // 오늘의 찬양 다이얼로그와 지휘 찬양이 같은 #hymn-audio를 쓴다
   currentHymn = h;
   $('#hymn-number').textContent = `${h.number}장`;
   $('#hymn-title').textContent = h.title;
@@ -122,6 +125,7 @@ const TRASH = { x: 16.9, z: -1.5 };
 const NPC_Z = -6.2;
 const TV = { x: 0, y: 3.2, z: -8.1, w: 6.4 };
 // 찬양대석: 10명씩 3줄 계단식(앞줄 낮고 뒷줄 높음)
+const ENSEMBLE_SEATS = 6, ENSEMBLE_Z = -.3; // 앙상블 의자 한 줄
 const TIERS = [{ z0: 0.85, z1: 2.35, y: 0.2 }, { z0: 2.35, z1: 3.85, y: 0.4 }, { z0: 3.85, z1: 5.35, y: 0.6 }];
 const TIER_HALF_W = 5.7;
 
@@ -132,7 +136,7 @@ const state = {
   emote: '', emoteEnd: 0, yaw: 0.28, pitch: 0.57, distance: 12.8, dragging: false,
   profile: null, disguised: false, maskBlockedUntil: 0, doorOpen: 0, tvFocus: false,
   prayStart: 0, coffeeRight: false, held: null, sips: 0, sipEnd: 0, panicEnd: 0, brewing: false,
-  playing: false, conducting: false, pianoUnlocked: false, stuck: false, notes: new Set(), lessonStep: 0, doorWarnAt: 0,
+  playing: false, conducting: false, conductWait: 0, praise: null,pianoUnlocked: false, stuck: false, notes: new Set(), lessonStep: 0, doorWarnAt: 0,
 };
 let renderer, cssRenderer, camera, scene, cssScene, avatar, torso, leftArm, rightArm, head, marker, screenObject, floor;
 let me, npc, doorPivot, machineLed, board, boardTex;
@@ -273,7 +277,13 @@ function sitBench() {
   avatar.position.set(BENCH.x, BENCH.y, BENCH.z); avatar.rotation.y = BENCH.rotation; ensureAudio();
   toast(state.profile.part === 'accompanist' ? '🎹 피아노 앞에 앉았어요. 건반을 눌러 연주해 보세요.' : '🎹 피아노 벤치에 앉았어요. 건반을 눌러(또는 A W S E D F T G Y H U J K) 연주해 보세요.');
 }
-function conductSignal(id, kind) { if (kind === 'start') condSince.set(id, performance.now()); else condSince.delete(id); } // 시작은 언제나 타이머 재시작(중간에 끊겼다면 처음부터)
+// 지휘 신호(MP onRemoteConduct): 'start'(타이머 재시작 + 자기 자리로 모이기) · 'stop' · 'hymn:번호'(찬양이 없는 주의 랜덤 찬송가 공유)
+function conductSignal(id, kind) {
+  kind = String(kind);
+  if (kind.startsWith('hymn:')) { if (id !== 'me') playPraiseHymn(Number(kind.slice(5)), id); return; }
+  if (kind === 'start') { condSince.set(id, performance.now()); if (id !== 'me') gatherToSeat(); } // 시작은 언제나 타이머 재시작(중간에 끊겼다면 처음부터)
+  else { condSince.delete(id); if (id === praiseFrom) stopHymnAudio(); }
+}
 function updateBenchLock(now) {
   if (state.seated === BENCH && !MP.hasSeat()) { state.seated = null; releaseAllKeys(); toast('같은 자리를 먼저 차지한 사람이 있어요.'); } // 자리 경합에서 졌을 때
   state.stuck = benchLocked();
@@ -281,11 +291,11 @@ function updateBenchLock(now) {
   for (const t of condSince.values()) if (now - t >= CONDUCT_UNLOCK_MS) { state.pianoUnlocked = true; state.stuck = false; toast(UNLOCK_MSG); return; }
 }
 
-function chair(x, z, rotation, y = 0) {
+function chair(x, z, rotation, y = 0, kind = 'choir') { // kind: 'choir'(합창석) | 'ensemble'(앙상블 의자)
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = rotation; scene.add(g);
   box(.86, .13, .82, 0x919a78, 0, .65, 0, g); box(.87, .62, .11, 0x919a78, 0, 1.01, -.36, g);
   for (const a of [-.33, .33]) for (const b of [-.29, .29]) box(.055, .61, .055, 0x575a46, a, .31, b, g);
-  chairs.push({ group: g, x, y, z, rotation });
+  chairs.push({ group: g, x, y, z, rotation, kind });
 }
 function plant(x, z) {
   cylinder(.37, .27, .65, 0xd5c7ad, x, .33, z);
@@ -428,14 +438,16 @@ function makeRoom() {
   document.fonts?.load(`700 40px "Noto Sans KR"`).then(drawBoard).catch(() => {});
   // 그랜드 피아노 + 벤치 (반주자 자리)
   buildGrandPiano();
-  // 오케스트라 구석: 보면대 3개 (드럼·기타는 없앰)
+  // 앙상블 구석: 보면대 3개 (드럼·기타는 없앰)
   musicStand(6.2, -1.7, -.5); musicStand(7.5, -2.5, -.7); musicStand(5.6, -3.0, -.3);
   microphone(0, -1.9); microphone(2, -2.3);
   // 찬양대석: 10명씩 3줄 계단식
   TIERS.forEach((t, r) => {
     const zc = (t.z0 + t.z1) / 2; floors.push(box(TIER_HALF_W * 2, t.y, t.z1 - t.z0, 0xc4ac87, 0, t.y / 2, zc)); box(TIER_HALF_W * 2, .03, .03, 0x9c916e, 0, t.y, t.z0);
-    for (let i = 0; i < 10; i++) chair(-4.95 + i * 1.1, zc + .25, Math.PI, t.y);
+    for (let i = 0; i < 10; i++) chair(-4.95 + i * 1.1, zc + .25, Math.PI, t.y, 'choir');
   });
+  // 앙상블 의자 6개: 합창석 앞 한 줄(마이크·단상 앞, 첫 단 z 0.85보다 TV 쪽). 합창석 30개 다음이라 자리 인덱스 30~35
+  for (let i = 0; i < ENSEMBLE_SEATS; i++) chair(-3.75 + i * 1.5, ENSEMBLE_Z, Math.PI, 0, 'ensemble');
   buildConductorPodium();
   for (const x of [-9.3, 9.3]) { plant(x, -7.3); plant(x, 5.5); }
   // 창문과 조명
@@ -523,7 +535,8 @@ function validPosition(x, z) {
 function move(dx, dz) { const p = avatar.position; const old = p.clone(); if (validPosition(p.x + dx, p.z)) p.x += dx; if (validPosition(p.x, p.z + dz)) p.z += dz; return p.distanceToSquared(old) > .000001; }
 function benchDist() { return Math.hypot(avatar.position.x - BENCH.x, avatar.position.z - BENCH.z); }
 function benchFree() { return !MP.isSeatClaimed(BENCH_SEAT); }
-function nearestChair() { return chairs.reduce((best, c, i) => { if (MP.isSeatClaimed(i)) return best; const d = Math.hypot(avatar.position.x - c.x, avatar.position.z - c.z); return d < best.d ? { chair: c, d } : best; }, { chair: null, d: Infinity }); }
+function chairKind() { const part = state.profile?.part; return part === 'orchestra' ? 'ensemble' : part === 'conductor' || part === 'accompanist' ? null : 'choir'; } // 지휘자(단상)·반주자(피아노 벤치)는 의자를 안 쓴다
+function nearestChair() { const kind = chairKind(); return chairs.reduce((best, c, i) => { if (c.kind !== kind || MP.isSeatClaimed(i)) return best; const d = Math.hypot(avatar.position.x - c.x, avatar.position.z - c.z); return d < best.d ? { chair: c, d } : best; }, { chair: null, d: Infinity }); }
 function toggleSit() {
   if (!state.entered) return;
   if (state.seated) {
@@ -546,19 +559,85 @@ function clearTarget() { state.target = null; state.queue = []; state.dest = nul
 /* ---------- 지휘 ---------- */
 const CONDUCT_BPM = 72;
 function nearPodium() { return Math.hypot(avatar.position.x - PODIUM.x, avatar.position.z - PODIUM.z); }
-function seatAllForPraise() { // 멀티플레이 연결됨: 지휘 신호는 startConducting()의 MP.sendConduct('start')가 보내고, 받은 쪽은 각자 자리로 간다. 1인용 빌드에서는 찬양 시작(TV 자동 재생)이 실제 동작.
-  if (modeVideos().length) playIndex(tv.index || 0, true);
-  toast('🎼 지휘가 시작됐어요 — 모두 자리로 돌아가 찬양을 시작해요');
+/* 지휘 시작 흐름: (a) 모이기 → (b) 모두 자리에 서면 지휘 시작 → (c) 찬양 재생 */
+const GATHER_MAX_MS = 6000, GATHER_MIN_MS = 400, GATHER_HOLD = { hold: true }; // 6초 안에 못 모여도 그 시점 자리에 있는 사람만으로 시작
+let gather = null, praiseFrom = null; // gather: 내가 걸어가는 중인 자리 { chair | bench, idx }, praiseFrom: 찬송가를 틀어 준 지휘자 id
+function seatPos(i) { return i === BENCH_SEAT ? BENCH : chairs[i]; }
+function startGather() { // 내 파트의 자리를 정해 차지하고 걸어간다
+  if (state.seated || state.conducting) return;
+  stopPrayer(true);
+  if (state.profile.part === 'accompanist') { // 반주자 → 피아노 벤치(남이 앉아 있으면 포기)
+    if (!benchFree()) return;
+    gather = { bench: true }; routeTo(new THREE.Vector3(BENCH.x, 0, BENCH.z)); return;
+  }
+  const n = nearestChair(); if (!n.chair) { gather = null; toast('빈 자리가 없어요. 서서 찬양해요.'); return; }
+  const idx = chairs.indexOf(n.chair); MP.claimSeat(idx); gather = { chair: n.chair, idx };
+  routeTo(new THREE.Vector3(n.chair.x, 0, n.chair.z));
+}
+function gatherToSeat() { // 지휘 'start' 신호를 받은 클라이언트(원격) 또는 1인용: 각자 자리로 간다
+  if (!state.entered || state.profile.part === 'conductor' || state.conducting || state.conductWait || avatar.position.x > 10.6) return; // 지휘자는 단상 유지, 교사실은 제외
+  if (state.seated) { if (state.profile.part === 'orchestra' && !state.playing) startPlaying(); return; } // 이미 차지한 자리가 있으면 그대로
+  // multiplayer.js의 _onConduct가 이 핸들러 직후 `state.seated`가 비었으면 가장 가까운 아무 의자에 _autoSeat한다(파트 무시) — 같은 호출 스택 동안만 자리가 찬 것처럼 보이게 해 막고, 곧바로 내 파트 자리로 간다
+  state.seated = GATHER_HOLD;
+  queueMicrotask(() => { if (state.seated === GATHER_HOLD) state.seated = null; startGather(); });
+}
+function cancelGather() { if (!gather) return; if (gather.idx != null && !state.seated) MP.releaseSeat(); gather = null; }
+function updateGather() { // 매 프레임: 도착하면 앉는다(앙상블은 악기도 든다)
+  if (!gather) return;
+  if (state.seated) { gather = null; return; }
+  const p = gather.bench ? BENCH : gather.chair, d = Math.hypot(avatar.position.x - p.x, avatar.position.z - p.z);
+  if (gather.idx != null && !MP.hasSeat()) { gather = null; startGather(); return; } // 자리 경합에서 졌다 → 다른 빈 자리로
+  if (d < .5) {
+    gather = null; clearTarget();
+    if (p.bench) { sitBench(); return; }
+    state.seated = p; avatar.position.set(p.x, p.y, p.z); avatar.rotation.y = p.rotation;
+    if (state.profile.part === 'orchestra') startPlaying(); // 연주 준비: 악기를 연주 자세로
+  } else if (!state.target) cancelGather(); // 이동 입력·장애물로 중단됨
+}
+function allSeated() { // presence로 방 안 모든 사람의 자리 확인: 자리를 차지했고(seat) 그 자리 가까이에 도착했는가
+  for (const [key, arr] of MP._presence) {
+    if (key === MP._id || !arr.length) continue;
+    const s = arr[arr.length - 1];
+    if (s.part === 'conductor' || s.x > 10.6) continue; // 다른 지휘자·교사실 인원은 기다리지 않는다
+    const p = s.seat == null ? null : seatPos(s.seat);
+    if (!p || Math.hypot(s.x - p.x, s.z - p.z) > .6) return false;
+  }
+  return true; // 혼자일 때도 true
+}
+function seatAllForPraise() { toast('🎼 지휘가 시작됐어요 — 모두 자리로 돌아가 찬양을 시작해요'); MP.sendConduct('start'); } // (a) 모이기 신호
+function updateConductWait(now) { // (b) 지휘자 클라이언트: 모두 앉았거나 6초가 지나면 지휘 시작
+  const w = state.conductWait; if (!w) return; const el = now - w;
+  if (el >= GATHER_MAX_MS || (el >= GATHER_MIN_MS && allSeated())) beginConducting();
+}
+function beginConducting() {
+  state.conductWait = 0; state.conducting = true; conductSignal('me', 'start'); startPraise();
+}
+function startPraise() { // (c) 그 주의 찬양: 세트리스트가 있으면 TV 첫 곡부터, 없으면 랜덤 찬송가
+  if (modeVideos('playlist').length) { state.praise = 'tv'; setMode('playlist'); playIndex(0, true); return; }
+  state.praise = 'hymn';
+  const h = HYMNS[Math.floor(Math.random() * HYMNS.length)];
+  playPraiseHymn(h.number, 'me'); MP.sendConduct(`hymn:${h.number}`); // 지휘자가 뽑아 모두에게 알린다
+}
+function playPraiseHymn(number, from) { // 모든 클라이언트: 같은 찬송가 재생(#hymn-audio, skip 적용)
+  const h = HYMNS.find((x) => x.number === number); if (!h) return;
+  praiseFrom = from; loadHymn(h);
+  const a = $('#hymn-audio'); a.play().catch(() => toast('소리가 나지 않으면 화면을 한 번 눌러 주세요.'));
+  toast(`🎵 찬양이 없는 주예요 — ${h.number}장 ${h.title}을(를) 함께 불러요`);
+}
+function stopHymnAudio() { praiseFrom = null; const a = $('#hymn-audio'); if (a) a.pause(); }
+function stopPraise() { // 지휘 종료: TV 정지 또는 찬송가 오디오 정지
+  if (state.praise === 'tv') { tvCommand('pauseVideo'); mpTv('pause'); }
+  stopHymnAudio(); state.praise = null;
 }
 function startConducting() {
-  if (!state.entered || state.profile.part !== 'conductor' || state.conducting || nearPodium() > CONDUCT_RANGE) return;
+  if (!state.entered || state.profile.part !== 'conductor' || state.conducting || state.conductWait || nearPodium() > CONDUCT_RANGE) return;
   stopPrayer(true); stopPlaying(); state.emoteEnd = 0; state.seated = null; clearTarget();
-  state.conducting = true; avatar.position.set(PODIUM.x, PODIUM.h, PODIUM.z); avatar.rotation.y = 0; // +z(찬양대석) 방향
+  avatar.position.set(PODIUM.x, PODIUM.h, PODIUM.z); avatar.rotation.y = 0; // 지휘자는 이미 단상 — 이동하지 않고 +z(찬양대석) 방향
   state.savedYaw = state.yaw; state.yaw = Math.PI; state.tvFocus = false; // 카메라를 지휘자 뒤(TV 쪽)로 돌려 어깨 너머로 찬양대석을 봄
-  seatAllForPraise(); MP.sendConduct('start'); conductSignal('me', 'start');
+  state.conductWait = performance.now(); seatAllForPraise(); // 지휘 자세·찬양은 모두 앉은 뒤(beginConducting)
 }
 function stopConducting(silent = false) {
-  if (!state.conducting) return; state.conducting = false; MP.sendConduct('stop'); conductSignal('me', 'stop');
+  if (!state.conducting && !state.conductWait) return; state.conducting = false; state.conductWait = 0; MP.sendConduct('stop'); conductSignal('me', 'stop'); stopPraise();
   if (state.savedYaw != null) { state.yaw = state.savedYaw; state.savedYaw = null; }
   avatar.position.set(PODIUM.x, 0, PODIUM.z + PODIUM.half + .45); // 단상 앞(찬양대석 쪽)으로 내려옴
   if (!silent) toast('지휘를 마쳤어요.');
@@ -793,7 +872,7 @@ function updateContext(now) {
   const isOrch = state.profile.part === 'orchestra' && instrumentObj;
   setShown('#perform', Boolean(isOrch)); if (isOrch) setText('#perform', state.playing ? '⏹ 연주 멈추기' : `${instruments[state.profile.instrument].icon} 연주하기`);
   const isConductor = state.profile.part === 'conductor';
-  setShown('#conduct', isConductor && (state.conducting || nearPodium() <= CONDUCT_RANGE)); if (isConductor) setText('#conduct', state.conducting ? '⏹ 지휘 끝내기' : '🎼 지휘하기');
+  setShown('#conduct', isConductor && (state.conducting || state.conductWait || nearPodium() <= CONDUCT_RANGE)); if (isConductor) setText('#conduct', state.conducting || state.conductWait ?'⏹ 지휘 끝내기' : '🎼 지휘하기');
   setShown('#mask', !state.profile.teacher && Math.hypot(avatar.position.x - DOOR.x, avatar.position.z - DOOR.z) < 4.5); setText('#mask', state.disguised ? '🎭 가면 벗기' : '🎭 교사로 위장하기');
   setShown('#brew', avatar.position.x > 10.6 && dist(COFFEE) < 2.3 && !state.brewing);
   setShown('#take', avatar.position.x > 10.6 && dist(TABLE) < 2.2 && tableCups.length > 0 && !state.held); setText('#take', `☕ 커피 가져가기 (${tableCups.length})`);
@@ -809,7 +888,7 @@ function animate() {
   if (state.entered) {
     let moving = false, manual = false;
     if (!modalOpen() && !state.seated) {
-      const conductingNow = state.conducting;
+      const conductingNow = state.conducting || state.conductWait;
       let x = joystick.x, z = joystick.y; if (keys.has('KeyW') || keys.has('ArrowUp')) z -= 1; if (keys.has('KeyS') || keys.has('ArrowDown')) z += 1; if (keys.has('KeyA') || keys.has('ArrowLeft')) x -= 1; if (keys.has('KeyD') || keys.has('ArrowRight')) x += 1;
       const dir = new THREE.Vector3(x, 0, z);
       if (dir.lengthSq() > .01) { manual = true; clearTarget(); dir.clampLength(0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.yaw); }
@@ -820,7 +899,7 @@ function animate() {
     if (moving) { if (state.prayStart) stopPrayer(); if (state.playing) stopPlaying(); if (state.tvFocus && manual) state.tvFocus = false; }
     marker.visible = Boolean(state.dest); if (state.dest) marker.position.set(state.dest.x, .015, state.dest.z);
     avatar.position.y = state.seated ? state.seated.y : avatar.position.y + (groundY(avatar.position.x, avatar.position.z) - avatar.position.y) * Math.min(1, dt * 14);
-    updateBenchLock(now); poseAvatar(t, now, moving, Boolean(state.seated)); updateDoor(dt); updateNpc(t); updateContext(now);
+    updateGather(); updateConductWait(now); updateBenchLock(now); poseAvatar(t, now, moving, Boolean(state.seated)); updateDoor(dt); updateNpc(t); updateContext(now);
   }
   for (const g of noteGroups()) { g.rotation.y = t * 1.6; g.position.y = g.userData.baseY + Math.sin(t * 2 + g.userData.id) * .05; }
   updateCamera(dt); camera.updateMatrixWorld();
@@ -965,7 +1044,7 @@ function setupUI() {
   $('#profile-parts').addEventListener('change', syncInstrumentField); $('#profile-form').addEventListener('submit', saveProfile);
   $('#profile-random').onclick = () => { const r = randomProfile(); $('#profile-name').value = r.nickname; const radio = document.querySelector(`input[name="pf-part"][value="${r.part}"]`); radio.checked = true; if (r.instrument) document.querySelector(`input[name="pf-inst"][value="${r.instrument}"]`).checked = true; syncInstrumentField(); };
   document.querySelectorAll('[data-emote]').forEach((b) => b.onclick = () => emote(b.dataset.emote));
-  $('#pray-toggle').onclick = togglePrayer; $('#sit').onclick = toggleSit; $('#perform').onclick = () => state.playing ? stopPlaying() : startPlaying(); $('#conduct').onclick = () => state.conducting ? stopConducting() : startConducting();
+  $('#pray-toggle').onclick = togglePrayer; $('#sit').onclick = toggleSit; $('#perform').onclick = () => state.playing ? stopPlaying() : startPlaying(); $('#conduct').onclick = () => state.conducting || state.conductWait ? stopConducting() : startConducting();
   $('#tv-focus').onclick = () => { state.tvFocus = !state.tvFocus; }; $('#mask').onclick = toggleMask; $('#brew').onclick = openBrew; $('#take').onclick = takeCup; $('#drink').onclick = drink; $('#trash').onclick = trashCup;
   $('#coffee-drink').onclick = () => brew(true); $('#coffee-donate').onclick = () => brew(false);
   $('#songs-open').onclick = () => { if (state.entered) { pickRandomHymn(); openDialog('#songs'); } }; $('#hymn-again').onclick = () => pickRandomHymn(); $('#hymn-sheet').onclick = () => openHymnSheet(); $('#verse-open').onclick = () => { if (state.entered) openDialog('#verse'); };
