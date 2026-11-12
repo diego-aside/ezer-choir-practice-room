@@ -297,7 +297,7 @@ function sitBench() {
   avatar.position.set(BENCH.x, BENCH.y, BENCH.z); avatar.rotation.y = BENCH.rotation; ensureAudio();
   toast(state.profile.part === 'accompanist' ? '🎹 피아노 앞에 앉았어요. 건반을 눌러 연주해 보세요.' : isMobile() ? '🎹 피아노 벤치에 앉았어요. 건반을 눌러 연주해 보세요.' : '🎹 피아노 벤치에 앉았어요. 건반을 눌러(또는 A W S E D F T G Y H U J K) 연주해 보세요.');
 }
-// 지휘 신호(MP onRemoteConduct): 'start'(타이머 재시작 + 자기 자리로 모이기) · 'stop' · 'hymn:번호'(찬양이 없는 주의 랜덤 찬송가 공유)
+// 지휘 신호(MP onRemoteConduct): 'start'(타이머 재시작 + 자기 자리로 모이기) · 'stop' · 'hymn:번호'(헌금송 또는 찬양이 없는 주의 랜덤 찬송가 공유)
 function conductSignal(id, kind) {
   kind = String(kind);
   if (kind.startsWith('hymn:')) { if (id !== 'me') playPraiseHymn(Number(kind.slice(5)), id); return; }
@@ -632,21 +632,37 @@ function updateConductWait(now) { // (b) 지휘자 클라이언트: 모두 앉�
 function beginConducting() {
   state.conductWait = 0; state.conducting = true; conductSignal('me', 'start'); startPraise();
 }
-function startPraise() { // (c) 그 주의 찬양: 세트리스트가 있으면 TV 첫 곡부터, 없으면 랜덤 찬송가
-  if (modeVideos('playlist').length) { state.praise = 'tv'; setMode('playlist'); playIndex(0, true); return; }
+function offeringNumber() { // 이번 주 헌금송 문자열('310장 아 하나님의 은혜로')에서 번호 파싱. 없거나 풀에 없으면 null
+  const m = /^\s*(\d+)\s*장/.exec(currentSchedule().current?.offering || ''), n = m ? Number(m[1]) : null;
+  return n && HYMNS.some((x) => x.number === n) ? n : null;
+}
+let mainPraiseDone = false; // 본송→헌금송 전환 중복 방지
+function startPraise() { // 지휘 음악: 본송(weekly 첫 곡, TV) → 헌금송(찬송가 오디오) → 둘 다 없으면 랜덤 찬송가. 세트리스트는 쓰지 않는다.
+  mainPraiseDone = false;
+  const main = modeVideos('weekly')[0];
+  if (main) { state.praise = 'main'; setMode('weekly'); playIndex(0, true); toast(`🎵 본송: ${main.title.replace(/\s*\(.*\)$/, '')}`); return; }
+  const off = offeringNumber();
+  if (off) { state.praise = 'offering'; playPraiseHymn(off, 'me'); MP.sendConduct(`hymn:${off}`); return; }
   state.praise = 'hymn';
   const h = HYMNS[Math.floor(Math.random() * HYMNS.length)];
   playPraiseHymn(h.number, 'me'); MP.sendConduct(`hymn:${h.number}`); // 지휘자가 뽑아 모두에게 알린다
+}
+function mainPraiseEnded() { // 본송 영상 끝(playerState 0): 지휘 중 본송일 때만, 한 번만 헌금송으로 넘어간다
+  if (!state.conducting || state.praise !== 'main' || mainPraiseDone) return;
+  mainPraiseDone = true;
+  const off = offeringNumber(); if (!off) { state.praise = null; return; }
+  state.praise = 'offering'; tvCommand('pauseVideo'); mpTv('pause');
+  playPraiseHymn(off, 'me'); MP.sendConduct(`hymn:${off}`);
 }
 function playPraiseHymn(number, from) { // 모든 클라이언트: 같은 찬송가 재생(#hymn-audio, skip 적용)
   const h = HYMNS.find((x) => x.number === number); if (!h) return;
   praiseFrom = from; loadHymn(h);
   const a = $('#hymn-audio'); a.play().catch(() => toast('소리가 나지 않으면 화면을 한 번 눌러 주세요.'));
-  toast(`🎵 찬양이 없는 주예요 — ${h.number}장 ${h.title}을(를) 함께 불러요`);
+  toast(offeringNumber() === number ? `🎵 헌금송: ${h.number}장 ${h.title}` : `🎵 찬양이 없는 주예요 — ${h.number}장 ${h.title}을(를) 함께 불러요`);
 }
 function stopHymnAudio() { praiseFrom = null; const a = $('#hymn-audio'); if (a) a.pause(); }
-function stopPraise() { // 지휘 종료: TV 정지 또는 찬송가 오디오 정지
-  if (state.praise === 'tv') { tvCommand('pauseVideo'); mpTv('pause'); }
+function stopPraise() { // 지휘 종료: 본송(TV) 정지 + 찬송가 오디오 정지
+  if (state.praise === 'main') { tvCommand('pauseVideo'); mpTv('pause'); }
   stopHymnAudio(); state.praise = null;
 }
 function startConducting() {
@@ -1040,6 +1056,7 @@ function setupTv() {
     const info = d?.info; if (!info || typeof info !== 'object') return;
     if (info.videoData?.video_id && info.videoData.video_id !== tv.videoId) { tv.videoId = info.videoData.video_id; $('#tv-open').href = watchUrl(tv.videoId); const hit = modeVideos().find((v) => v.id === tv.videoId); if (hit && tv.mode === 'playlist') $('#tv-title').textContent = `${tv.data.modes.playlist.title} · ${hit.title}`; renderTvList(); }
     if (typeof info.playerState === 'number') tvStatus({ 1: '재생 중', 2: '일시정지', 3: '불러오는 중…', 0: '끝났어요', 5: '영상을 눌러 재생해 주세요.' }[info.playerState] ?? $('#tv-status').textContent);
+    if (info.playerState === 0) mainPraiseEnded();
     clearTimeout(tv.stallTimer); if (info.playerState === 3) tv.stallTimer = setTimeout(() => tvStatus('영상을 직접 눌러 재생해 주세요.'), 8000);
   });
   $('#tv-play').onclick = () => { if (!tv.current) { toast('먼저 목록에서 영상을 골라 주세요.'); return; } tvFrame.src = playUrl(tv.current); tv.loaded = false; tvStatus('재생을 시작해요… 안 나오면 영상을 직접 눌러 주세요.'); mpTv('play', true); };
