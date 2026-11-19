@@ -499,6 +499,27 @@
       "id": "verse-card-100",
       "ref": "에스겔 8:5~6",
       "img": "verse-cards/verse-card-100.jpg"
+    },
+    {
+      "id": "verse-card-101",
+      "ref": "디모데전서 5:8~10",
+      "img": "verse-cards/verse-card-101.jpg",
+      "fit": "contain"
+    },
+    {
+      "id": "verse-card-102",
+      "ref": "디모데후서 3:14~17",
+      "img": "verse-cards/verse-card-102.jpg"
+    },
+    {
+      "id": "verse-card-103",
+      "ref": "디모데후서 2:1~4",
+      "img": "verse-cards/verse-card-103.jpg"
+    },
+    {
+      "id": "verse-card-104",
+      "ref": "에스겔 16:60~63",
+      "img": "verse-cards/verse-card-104.jpg"
     }
   ]
 }
