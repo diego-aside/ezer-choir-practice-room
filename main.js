@@ -917,7 +917,7 @@ async function deckToggleLike() {
 function showDeckCard() {
   const card = DECK.cards[DECK.i]; if (!card) return;
   $('#deck-img').src = card.img; $('#deck-img').style.objectFit = card.fit || 'cover'; $('#deck-ref').textContent = card.ref; $('#deck-count').textContent = `${DECK.i + 1} / ${DECK.cards.length}`;
-  const a = $('#deck-save'); a.href = card.img; a.download = `오늘의말씀-${card.ref.replace(/[\\/:*?"<>|\s]+/g, '_')}.png`;
+  const a = $('#deck-save'); a.href = card.img; a.download = `말씀-${card.ref.replace(/[\\/:*?"<>|\s]+/g, '_')}.png`;
   const next = DECK.cards[(DECK.i + 1) % DECK.cards.length]; if (next) new Image().src = next.img;
   renderDeckLike();
 }
