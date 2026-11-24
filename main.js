@@ -53,7 +53,20 @@ function initHymnAudio() {
 }
 // 오늘의 큐티 인증: 원본 사진을 Apps Script 웹 앱(공개 엔드포인트)으로 보내 드라이브에 저장한다. 도장은 미리보기에만 얹는다.
 const QT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzO8HFpuGZJQHzlFhU2stcaN34oMccX5oOkYFsm--vsxj4vmSKNRn-0Vo9aje_69ifkeg/exec';
-const qt = { file: null, url: null, busy: false, names: [], idx: 0 };
+const qt = { file: null, url: null, busy: false, names: [], idx: 0, until: 0, timer: 0, dismissed: false, ctxHidden: false, kind: '' };
+// 큐티 바는 리마인드용으로만 잠깐 보인다: 표시 조건 = 표시 시간 안 && 닫지 않음 && (모바일에서) 컨텍스트 버튼 없음
+function qtBarVisible() { return Date.now() < qt.until && !qt.dismissed && !qt.ctxHidden; }
+function qtApplyBar() { $('#qt-bar').classList.toggle('qt-off', !qtBarVisible()); }
+function qtShowBar(ms, kind) {
+  qt.until = Date.now() + ms; qt.kind = kind || ''; qt.dismissed = false;
+  clearTimeout(qt.timer); qt.timer = setTimeout(qtApplyBar, ms);
+  qtApplyBar();
+}
+function qtHideBar() { qt.dismissed = true; clearTimeout(qt.timer); qtApplyBar(); }
+function qtRemind() { // 입장 후 리마인드: 오늘 이미 인증했으면 띄우지 않음
+  if (qt.names.includes(state.profile.nickname)) return;
+  qtShowBar(8000, 'remind');
+}
 function qtReset() {
   if (qt.url) URL.revokeObjectURL(qt.url);
   qt.file = null; qt.url = null; qt.busy = false;
@@ -96,7 +109,7 @@ async function qtSubmit() {
     const res = await fetch(QT_WEBAPP_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ nickname, imageData: await qtToBase64(blob), mimeType }) });
     const d = await res.json();
     if (!d.ok) throw new Error(d.error || 'upload failed');
-    toast('큐티 인증 완료! 참 잘했어요'); $('#qt').close(); qtReset(); qtRefresh();
+    toast('큐티 인증 완료! 참 잘했어요'); $('#qt').close(); qtReset(); qtRefresh(); qtShowBar(5000, 'confirm');
   } catch (e) {
     console.error(e); toast('업로드에 실패했어요. 다시 시도해 주세요.');
     qt.busy = false; $('#qt-submit').disabled = false; // 미리보기를 유지해 재시도
@@ -109,7 +122,8 @@ function qtRender(count, names) {
   $('#qt-count').textContent = count ? `🙏 오늘 큐티 인증 ${count}명` : '🙏 오늘 아직 큐티 인증이 없어요';
   $('#qt-names').hidden = !count;
   if (names.join('|') !== qt.names.join('|')) { qt.names = names; qt.idx = 0; }
-  qtShowName();
+  if (qt.kind === 'remind' && qt.names.includes(state.profile.nickname)) qt.until = 0; // 갱신 뒤 이미 인증한 걸 알면 리마인드 숨김
+  qtShowName(); qtApplyBar();
 }
 async function qtRefresh() {
   try {
@@ -120,6 +134,7 @@ async function qtRefresh() {
 function qtStart() {
   qtRefresh(); setInterval(qtRefresh, 30000);
   setInterval(() => { if (qt.names.length > 1) qtShowName(); }, 3000);
+  $('#qt-close').onclick = qtHideBar;
 }
 
 // 공과: lessons/lessons.json에서 show_from이 지났고 가장 최근인 항목을 골라 5단계를 만든다 (코드 변경 없이 매주 전환).
@@ -1000,7 +1015,7 @@ function applyProfile(p) {
 }
 function enter(p) {
   const info = parts[p.part]; avatar.position.set(info.spawn[0] + (Math.random() - .5) * .6, 0, info.spawn[1]); avatar.rotation.y = Math.PI; avatar.visible = true;
-  applyProfile(p); state.entered = true; MP.onEnter(); $('#entry').close(); toast(`${p.nickname}님, 환영해요. ${partLabel(p)} 자리에서 시작해요.`);
+  applyProfile(p); state.entered = true; MP.onEnter(); $('#entry').close(); toast(`${p.nickname}님, 환영해요. ${partLabel(p)} 자리에서 시작해요.`); qtRemind();
 }
 function showDraw() { $('#draw-icon').textContent = parts[draw.part].icon; $('#draw-name').textContent = draw.nickname; $('#draw-part').textContent = partLabel(draw); }
 function readSaved() { try { const p = JSON.parse(localStorage.getItem('praise-room-profile') || 'null'); if (p && parts[p.part] && p.nickname) return { nickname: String(p.nickname).slice(0, 16), part: p.part, instrument: p.part === 'orchestra' ? (instruments[p.instrument] ? p.instrument : 'violin') : null, teacher: Boolean(p.teacher) }; } catch { /* 무시 */ } return null; }
@@ -1116,6 +1131,9 @@ function updateContext(now) {
   const praying = state.prayStart > 0; setShown('#chip-pray', praying);
   if (praying) { const sec = (now - state.prayStart) / 1000; setText('#chip-pray', `🙏 기도 중 ${fmtTime(sec)}${sec >= PRAY_SKY_SEC ? ' · ✋ 하늘을 향해' : ''}${sec >= PRAY_COFFEE_SEC ? ' · 커피 권한 달성 ✓' : ''}`); }
   machineLed.material.emissive.setHex(state.brewing ? 0xffa030 : (state.coffeeRight ? 0x3ad06a : 0x000000));
+  // 모바일에서는 큐티 바와 컨텍스트 버튼이 같은 높이(bottom:150px)라, 컨텍스트 버튼이 뜨는 동안 큐티 바를 숨긴다
+  const ctxShown = isMobile() && [...document.querySelectorAll('#context button')].some(b => !b.hidden);
+  if (ctxShown !== qt.ctxHidden) { qt.ctxHidden = ctxShown; qtApplyBar(); }
 }
 function animate() {
   requestAnimationFrame(animate); const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime, now = performance.now();
