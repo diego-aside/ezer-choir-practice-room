@@ -28,7 +28,7 @@ const instruments = {
 };
 const BIBLE_NAMES = ['다윗', '미리암', '요한', '에스더', '한나', '사무엘', '루디아', '모세', '룻', '바울', '디모데', '마리아', '베드로', '다니엘', '요셉', '사라', '드보라', '엘리야', '나오미', '브리스길라'];
 
-// 오늘의 찬양: 열 때마다 한 곡 뽑기 (yeram.org, 찬양대 헌금송 일정 기준 7곡).
+// 지휘 찬양용 찬송가 (yeram.org, 찬양대 헌금송 일정 기준 7곡).
 // audio는 yeram.org 상세 페이지의 첫 번째 음원(스테레오 44.1kHz), sheet는 악보 GIF(og:image).
 // sid는 재조회해도 같은 값으로 확인됨(2026-11-11).
 const HYMNS = [
@@ -40,16 +40,7 @@ const HYMNS = [
   { number: 310, skip: 4.9, title: '아 하나님의 은혜로', audio: 'https://yeram.org/?module=file&act=procFileDownload&file_srl=329446&sid=1c9c3f57edd6bcbd477b7135b01cab8f&module_srl=117981', sheet: 'https://yeram.org/files/attach/images/117981/310/118/9b8fb65fe7f369bb4059c8dc3fac4926.gif' },
   { number: 384, skip: 5.4, title: '나의 갈 길 다 가도록', audio: 'https://yeram.org/?module=file&act=procFileDownload&file_srl=329520&sid=2da25d037db981b24216a2b512083384&module_srl=117981', sheet: 'https://yeram.org/files/attach/images/117981/384/118/5a9c70f8d858a6186d573c0d0248ad58.gif' },
 ];
-let currentHymn = null;
-function pickRandomHymn() {
-  let h;
-  do { h = HYMNS[Math.floor(Math.random() * HYMNS.length)]; } while (HYMNS.length > 1 && h === currentHymn);
-  loadHymn(h);
-}
-function loadHymn(h) { // 오늘의 찬양 다이얼로그와 지휘 찬양이 같은 #hymn-audio를 쓴다
-  currentHymn = h;
-  $('#hymn-number').textContent = `${h.number}장`;
-  $('#hymn-title').textContent = h.title;
+function loadHymn(h) { // 지휘 찬양이 숨겨진 #hymn-audio를 쓴다
   const audio = $('#hymn-audio');
   audio.referrerPolicy = 'no-referrer'; // yeram.org가 Vercel Referer 요청을 403으로 막는다(핫링크 차단)
   audio.src = h.audio + '#t=' + h.skip; // 앞부분 멘트(장·제목 안내) 건너뛰고 바로 찬송가부터
@@ -60,13 +51,75 @@ function initHymnAudio() {
   const audio = $('#hymn-audio');
   audio.addEventListener('error', () => { if (audio.getAttribute('src')) toast('음원을 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.'); });
 }
-function openHymnSheet() {
-  if (!currentHymn) return;
-  $('#sheet-title').textContent = `${currentHymn.number}장 ${currentHymn.title}`;
-  $('#sheet-content').replaceChildren();
-  const img = document.createElement('img'); img.src = currentHymn.sheet; img.alt = `${currentHymn.title} 악보`;
-  img.onerror = () => $('#sheet-content').textContent = '악보를 불러오지 못했어요. 파일 경로를 확인해 주세요.';
-  $('#sheet-content').append(img); openDialog('#sheet');
+// 오늘의 큐티 인증: 원본 사진을 Apps Script 웹 앱(공개 엔드포인트)으로 보내 드라이브에 저장한다. 도장은 미리보기에만 얹는다.
+const QT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzO8HFpuGZJQHzlFhU2stcaN34oMccX5oOkYFsm--vsxj4vmSKNRn-0Vo9aje_69ifkeg/exec';
+const qt = { file: null, url: null, busy: false, names: [], idx: 0 };
+function qtReset() {
+  if (qt.url) URL.revokeObjectURL(qt.url);
+  qt.file = null; qt.url = null; qt.busy = false;
+  $('#qt-file').value = ''; $('#qt-preview').hidden = true; $('#qt-pick').hidden = false; $('#qt-photo').removeAttribute('src');
+  $('#qt-stamp').classList.remove('stamped'); $('#qt-submit').disabled = false;
+}
+function qtOpen() {
+  qtReset(); $('#qt-nickname').value = state.profile?.nickname || ''; openDialog('#qt');
+}
+function qtChosen() {
+  const f = $('#qt-file').files[0]; if (!f) return;
+  if (qt.url) URL.revokeObjectURL(qt.url);
+  qt.file = f; qt.url = URL.createObjectURL(f);
+  $('#qt-photo').src = qt.url; $('#qt-pick').hidden = true; $('#qt-preview').hidden = false;
+  const stamp = $('#qt-stamp'); stamp.classList.remove('stamped'); void stamp.offsetWidth; stamp.classList.add('stamped'); // 탁 찍히는 모션 재생
+}
+function qtToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] || '');
+    r.onerror = reject; r.readAsDataURL(blob);
+  });
+}
+async function qtPayloadFile(file) { // jpeg·png는 원본 그대로, 그 외(HEIC 등)는 JPEG로 변환
+  if (file.type === 'image/jpeg' || file.type === 'image/png') return { blob: file, mimeType: file.type };
+  let src = await createImageBitmap(file).catch(() => null);
+  if (!src) { src = new Image(); src.src = qt.url; await src.decode(); }
+  const w = src.width || src.naturalWidth, h = src.height || src.naturalHeight;
+  const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(src, 0, 0);
+  const blob = await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.92));
+  if (!blob) throw new Error('convert failed');
+  return { blob, mimeType: 'image/jpeg' };
+}
+async function qtSubmit() {
+  if (!qt.file || qt.busy) return;
+  qt.busy = true; $('#qt-submit').disabled = true;
+  try {
+    const { blob, mimeType } = await qtPayloadFile(qt.file);
+    const nickname = $('#qt-nickname').value.trim().slice(0, 16) || state.profile?.nickname || '방문자';
+    const res = await fetch(QT_WEBAPP_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ nickname, imageData: await qtToBase64(blob), mimeType }) });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || 'upload failed');
+    toast('큐티 인증 완료! 참 잘했어요'); $('#qt').close(); qtReset(); qtRefresh();
+  } catch (e) {
+    console.error(e); toast('업로드에 실패했어요. 다시 시도해 주세요.');
+    qt.busy = false; $('#qt-submit').disabled = false; // 미리보기를 유지해 재시도
+  }
+}
+function qtShowName() {
+  $('#qt-names').textContent = qt.names.length ? qt.names[qt.idx++ % qt.names.length] : '';
+}
+function qtRender(count, names) {
+  $('#qt-count').textContent = count ? `🙏 오늘 큐티 인증 ${count}명` : '🙏 오늘 아직 큐티 인증이 없어요';
+  $('#qt-names').hidden = !count;
+  if (names.join('|') !== qt.names.join('|')) { qt.names = names; qt.idx = 0; }
+  qtShowName();
+}
+async function qtRefresh() {
+  try {
+    const r = await fetch(`${QT_WEBAPP_URL}?action=today`); const d = await r.json();
+    if (d && d.ok) qtRender(Number(d.count) || 0, Array.isArray(d.nicknames) ? d.nicknames.map(String) : []);
+  } catch { /* 카운터는 다음 갱신 때 다시 시도 */ }
+}
+function qtStart() {
+  qtRefresh(); setInterval(qtRefresh, 30000);
+  setInterval(() => { if (qt.names.length > 1) qtShowName(); }, 3000);
 }
 
 // 공과: lessons/lessons.json에서 show_from이 지났고 가장 최근인 항목을 골라 5단계를 만든다 (코드 변경 없이 매주 전환).
@@ -1123,9 +1176,6 @@ function setupInput() {
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) joy.addEventListener(type, resetStick);
 }
 
-/* ---------- 곡 목록 (기존) ---------- */
-/* 오늘의 찬양은 열 때마다 한 곡 뽑기로 변경됨(2026-11-11): pickRandomHymn()이 열릴 때마다 뽑는다. */
-
 /* ---------- 공과 5단계 ---------- */
 function renderLessonList() {
   const body = $('#lesson-body'), cur = currentLesson();
@@ -1257,7 +1307,7 @@ function setupUI() {
   $('#pray-toggle').onclick = togglePrayer; $('#sit').onclick = toggleSit; $('#play-piano').onclick = openTouchPiano; $('#piano-keys').addEventListener('close', () => { for (const k of $('#pk-board').querySelectorAll('.down')) k.classList.remove('down'); releaseAllKeys(); }); $('#perform').onclick = () => state.playing ? stopPlaying() : startPlaying(); $('#conduct').onclick = () => state.conducting || state.conductWait ? stopConducting() : startConducting();
   $('#tv-focus').onclick = () => { state.tvFocus = !state.tvFocus; }; $('#mask').onclick = toggleMask; $('#brew').onclick = openBrew; $('#take').onclick = takeCup; $('#drink').onclick = drink; $('#trash').onclick = trashCup;
   $('#coffee-drink').onclick = () => brew(true); $('#coffee-donate').onclick = () => brew(false);
-  $('#songs-open').onclick = () => { if (state.entered) { pickRandomHymn(); openDialog('#songs'); } }; initHymnAudio(); $('#hymn-sheet').onclick = () => openHymnSheet(); $('#verse-open').onclick = () => { if (state.entered) openDialog('#verse'); };
+  $('#qt-open').onclick = () => { if (state.entered) qtOpen(); }; $('#qt-file').onchange = qtChosen; $('#qt-retake').onclick = () => { $('#qt-file').value = ''; $('#qt-file').click(); }; $('#qt-submit').onclick = qtSubmit; qtStart(); initHymnAudio(); $('#verse-open').onclick = () => { if (state.entered) openDialog('#verse'); };
   $('#lesson-open').onclick = () => { if (!state.entered) return; state.lessonStep = 0; refreshLesson(); renderLesson(); openDialog('#lesson'); };
   $('#lesson-past').onclick = () => { state.lessonList = true; renderLesson(); };
   $('#lesson-back').onclick = backToThisWeek;

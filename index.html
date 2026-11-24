@@ -52,8 +52,9 @@
 <footer id="toolbar">
   <button class="identity" id="identity" aria-label="이름·파트 바꾸기"><span id="part-dot"></span><div><strong id="nickname-display">방문자</strong><small id="part-display">입장 준비 중</small></div><span class="edit-mark">✎</span></button>
   <div class="emotes" aria-label="이모트"><button data-emote="amen"><span>🙏</span>아멘</button><button data-emote="clap"><span>👏</span>박수</button><button data-emote="raise"><span>✋</span>손들기</button><button id="pray-toggle"><span>🙇</span><b id="pray-label">기도하기</b></button></div>
-  <div class="actions"><button id="songs-open" class="songs-button">♫ <span>오늘의 찬양</span></button><button id="verse-open" class="songs-button">💬 <span>채팅</span></button><button id="deck-open" class="songs-button">📖 <span>오늘의 말씀</span></button><button id="lesson-open" class="songs-button">📚 <span>공과</span></button></div>
+  <div class="actions"><button id="qt-open" class="songs-button">🙏 <span>오늘의 큐티</span></button><button id="verse-open" class="songs-button">💬 <span>채팅</span></button><button id="deck-open" class="songs-button">📖 <span>오늘의 말씀</span></button><button id="lesson-open" class="songs-button">📚 <span>공과</span></button></div>
 </footer>
+<div id="qt-bar" role="status"><span id="qt-count">🙏 오늘 아직 큐티 인증이 없어요</span><b id="qt-names" hidden></b></div>
 <div class="movement-hint"><span class="only-desktop">바닥 클릭으로 이동 <i>·</i> 드래그로 둘러보기 <i>·</i> 휠로 확대 / 축소</span><span class="only-mobile">조이스틱으로 이동 <i>·</i> 화면을 밀어 둘러보기 <i>·</i> 터치로 선택</span></div>
 <div id="joystick" aria-label="이동 조이스틱"><div id="stick"></div></div>
 <div id="toast" role="status" hidden></div>
@@ -72,8 +73,12 @@
   <div id="profile-teacher-pw-field" hidden><label for="profile-teacher-pw" class="field-label">교사 비밀번호</label><input id="profile-teacher-pw" type="password" autocomplete="off" maxlength="64"></div>
   <div class="row-buttons"><button type="button" id="profile-random">🎲 랜덤으로</button><button class="primary" id="profile-save">저장</button></div></form></dialog>
 
-<dialog id="songs"><div class="dialog-heading"><div><span class="eyebrow">TODAY'S PRAISE · 오늘의 찬송가</span><h2>오늘의 찬양</h2></div><button class="close" aria-label="닫기">×</button></div><p class="muted">음원을 듣고 악보를 보며 연습해요.</p><div id="random-hymn"><div class="song-row"><span class="song-number" id="hymn-number"></span><div class="song-detail"><strong id="hymn-title"></strong><small>찬송가 · yeram.org</small></div></div><audio id="hymn-audio" controls preload="none" referrerpolicy="no-referrer"></audio></div><div class="row-buttons"><button id="hymn-sheet" class="primary">악보 보기 ↗</button></div><p class="fine">찬송가 음원·악보는 yeram.org에서 가져왔어요.</p></dialog>
-<dialog id="sheet"><div class="dialog-heading"><h2 id="sheet-title">악보</h2><button class="close" aria-label="닫기">×</button></div><div id="sheet-content"></div></dialog>
+<audio id="hymn-audio" preload="none" referrerpolicy="no-referrer" hidden></audio>
+<dialog id="qt"><div class="dialog-heading"><div><span class="eyebrow">TODAY'S QT · 오늘의 큐티</span><h2>오늘의 큐티 인증</h2></div><button type="button" class="close" aria-label="닫기">×</button></div>
+  <label for="qt-nickname" class="field-label">닉네임</label><input id="qt-nickname" maxlength="16" autocomplete="off">
+  <div id="qt-pick"><p class="muted">큐티 노트를 찍거나 사진을 골라 주세요.</p><input id="qt-file" type="file" accept="image/*"><label for="qt-file" class="primary qt-choose">📷 사진 선택</label></div>
+  <div id="qt-preview" hidden><div class="qt-frame"><img id="qt-photo" alt="큐티 인증 사진"><div id="qt-stamp" aria-hidden="true">참 잘했어요</div></div>
+  <div class="row-buttons"><button type="button" id="qt-retake">다시 찍기</button><button type="button" id="qt-submit" class="primary">인증하기</button></div></div></dialog>
 
 <dialog id="verse-deck"><button class="close" aria-label="닫기">×</button><div class="deck-title">오늘의 말씀 <small id="deck-ref"></small></div><div id="deck-stage"><button id="deck-prev" class="deck-arrow" aria-label="이전">‹</button><img id="deck-img" alt="오늘의 말씀 카드" draggable="false"><button id="deck-next" class="deck-arrow" aria-label="다음">›</button><div id="deck-hint" hidden><span class="hint-hand">👈</span><b>스와이프해서 다음 말씀 보기</b></div></div><div id="deck-actions"><button id="deck-like" aria-label="좋아요"><span id="deck-heart">♡</span> <span id="deck-likes">–</span></button><span id="deck-count"></span><a id="deck-save" role="button" download>↓ <span class="deck-save-label">저장</span></a></div></dialog>
 <dialog id="verse"><div class="dialog-heading"><div><span class="eyebrow">WORD · 성경 구절로 말해요</span><h2>채팅</h2></div><button class="close" aria-label="닫기">×</button></div><p class="muted">대화는 성경 구절 1절 단위로 이어져요. 구절을 고르면 머리 위에 말풍선이 떠요. (긴 구절은 ...으로 끊겨요)</p><div id="verse-list"></div><div class="list-title">내가 한 말씀</div><ol id="verse-log"><li class="muted">아직 없어요.</li></ol></dialog>
