@@ -952,16 +952,25 @@ function enter(p) {
 function showDraw() { $('#draw-icon').textContent = parts[draw.part].icon; $('#draw-name').textContent = draw.nickname; $('#draw-part').textContent = partLabel(draw); }
 function readSaved() { try { const p = JSON.parse(localStorage.getItem('praise-room-profile') || 'null'); if (p && parts[p.part] && p.nickname) return { nickname: String(p.nickname).slice(0, 16), part: p.part, instrument: p.part === 'orchestra' ? (instruments[p.instrument] ? p.instrument : 'violin') : null, teacher: Boolean(p.teacher) }; } catch { /* 무시 */ } return null; }
 function renderProfileForm() {
-  const p = state.profile; $('#profile-name').value = p.nickname; $('#profile-teacher').checked = p.teacher;
+  const p = state.profile; $('#profile-name').value = p.nickname; $('#profile-teacher').checked = p.teacher; $('#profile-teacher-pw').value = '';
   $('#profile-parts').replaceChildren(...Object.entries(parts).map(([k, v]) => { const l = document.createElement('label'); l.innerHTML = '<input type="radio" name="pf-part"><span></span>'; l.querySelector('input').value = k; l.querySelector('input').checked = k === p.part; l.querySelector('span').innerHTML = `${v.icon}<b>${v.name}</b>`; return l; }));
   $('#profile-instruments').replaceChildren(...Object.entries(instruments).map(([k, v]) => { const l = document.createElement('label'); l.innerHTML = '<input type="radio" name="pf-inst"><span></span>'; l.querySelector('input').value = k; l.querySelector('input').checked = k === (p.instrument || 'violin'); l.querySelector('span').innerHTML = `${v.icon}<b>${v.name}</b>`; return l; }));
-  syncInstrumentField();
+  syncInstrumentField(); syncTeacherPw();
 }
 function syncInstrumentField() { $('#instrument-field').hidden = document.querySelector('input[name="pf-part"]:checked')?.value !== 'orchestra'; }
-function saveProfile(event) {
+async function verifyTeacher(password) {
+  try { const r = await fetch('/api/verify-teacher', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) }); return r.ok && (await r.json()).ok === true; } catch { return false; }
+}
+function syncTeacherPw() { const on = $('#profile-teacher').checked && !state.profile.teacher; $('#profile-teacher-pw-field').hidden = !on; if (!on) $('#profile-teacher-pw').value = ''; }
+async function saveProfile(event) {
   event.preventDefault(); const part = document.querySelector('input[name="pf-part"]:checked').value;
-  const next = { nickname: $('#profile-name').value.trim().slice(0, 16) || state.profile.nickname, part, instrument: part === 'orchestra' ? (document.querySelector('input[name="pf-inst"]:checked')?.value || 'violin') : null, teacher: $('#profile-teacher').checked };
-  applyProfile(next); $('#profile').close(); toast(`${next.nickname}님 · ${partLabel(next)}(으)로 바꿨어요.`);
+  let teacher = $('#profile-teacher').checked, denied = false;
+  if (teacher && !state.profile.teacher) { // 새로 켠 경우에만 서버 검증
+    const btn = $('#profile-save'); btn.disabled = true;
+    teacher = await verifyTeacher($('#profile-teacher-pw').value); btn.disabled = false; denied = !teacher;
+  }
+  const next = { nickname: $('#profile-name').value.trim().slice(0, 16) || state.profile.nickname, part, instrument: part === 'orchestra' ? (document.querySelector('input[name="pf-inst"]:checked')?.value || 'violin') : null, teacher };
+  applyProfile(next); $('#profile-teacher-pw').value = ''; $('#profile').close(); toast(denied ? '비밀번호가 맞지 않아요' : `${next.nickname}님 · ${partLabel(next)}(으)로 바꿨어요.`);
 }
 
 /* ---------- 카메라 · 렌더 ---------- */
@@ -1242,7 +1251,7 @@ function setupUI() {
   $('#entry-form').addEventListener('submit', (e) => { e.preventDefault(); enter(draw); });
   const saved = readSaved(); if (saved) { $('#enter-saved').hidden = false; $('#enter-saved').onclick = () => enter(saved); }
   $('#identity').onclick = () => { if (!state.entered) return; renderProfileForm(); openDialog('#profile'); };
-  $('#profile-parts').addEventListener('change', syncInstrumentField); $('#profile-form').addEventListener('submit', saveProfile);
+  $('#profile-teacher').addEventListener('change', syncTeacherPw); $('#profile-parts').addEventListener('change', syncInstrumentField); $('#profile-form').addEventListener('submit', saveProfile);
   $('#profile-random').onclick = () => { const r = randomProfile(); $('#profile-name').value = r.nickname; const radio = document.querySelector(`input[name="pf-part"][value="${r.part}"]`); radio.checked = true; if (r.instrument) document.querySelector(`input[name="pf-inst"][value="${r.instrument}"]`).checked = true; syncInstrumentField(); };
   document.querySelectorAll('[data-emote]').forEach((b) => b.onclick = () => emote(b.dataset.emote));
   $('#pray-toggle').onclick = togglePrayer; $('#sit').onclick = toggleSit; $('#play-piano').onclick = openTouchPiano; $('#piano-keys').addEventListener('close', () => { for (const k of $('#pk-board').querySelectorAll('.down')) k.classList.remove('down'); releaseAllKeys(); }); $('#perform').onclick = () => state.playing ? stopPlaying() : startPlaying(); $('#conduct').onclick = () => state.conducting || state.conductWait ? stopConducting() : startConducting();

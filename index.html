@@ -69,6 +69,7 @@
   <fieldset><legend>나의 파트</legend><div class="part-options" id="profile-parts"></div></fieldset>
   <fieldset id="instrument-field" hidden><legend>앙상블 악기 <span class="hint">올해는 3가지예요</span></legend><div class="instrument-options" id="profile-instruments"></div></fieldset>
   <label class="check"><input type="checkbox" id="profile-teacher"> 교사 선생님이에요 <small>(교사 파트 · 교사실에 들어갈 수 있어요)</small></label>
+  <div id="profile-teacher-pw-field" hidden><label for="profile-teacher-pw" class="field-label">교사 비밀번호</label><input id="profile-teacher-pw" type="password" autocomplete="off" maxlength="64"></div>
   <div class="row-buttons"><button type="button" id="profile-random">🎲 랜덤으로</button><button class="primary" id="profile-save">저장</button></div></form></dialog>
 
 <dialog id="songs"><div class="dialog-heading"><div><span class="eyebrow">TODAY'S PRAISE · 오늘의 찬송가</span><h2>오늘의 찬양</h2></div><button class="close" aria-label="닫기">×</button></div><p class="muted">음원을 듣고 악보를 보며 연습해요.</p><div id="random-hymn"><div class="song-row"><span class="song-number" id="hymn-number"></span><div class="song-detail"><strong id="hymn-title"></strong><small>찬송가 · yeram.org</small></div></div><audio id="hymn-audio" controls preload="none" referrerpolicy="no-referrer"></audio></div><div class="row-buttons"><button id="hymn-sheet" class="primary">악보 보기 ↗</button></div><p class="fine">찬송가 음원·악보는 yeram.org에서 가져왔어요.</p></dialog>
